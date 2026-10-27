@@ -1,0 +1,11 @@
+[project]
+name = "ai-ops-lecture"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ipykernel>=7.4.0",
+    "pandas>=3.1.0",
+    "pydantic-ai>=2.62.0",
+]
