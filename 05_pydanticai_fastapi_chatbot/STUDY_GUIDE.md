@@ -1,10 +1,5 @@
 # Study guide: 05 Chatbot (Streamlit + FastAPI + Pydantic AI)
 
-Keep this open next to the code in VS Code. Open the file named in the table, then read the matching section here.
-This guide explains the **why**. The docstrings and comments in the files already explain the **what**.
-
-This lecture has five Python files and one notebook. References look like `chat_agent.py` line 78, or notebook cell `[8]`.
-
 | When you are reading... | Read this section |
 | --- | --- |
 | The big picture | [2. The pictures](#2-the-pictures-to-understand) |
@@ -304,66 +299,7 @@ You need the Gemini key in the repo's `.env` (as in lecture 04).
 
 ---
 
-## 7. What I tested
-
-I ran your real code on **copies**, with a fake AI model, so no quota was used and no files changed.
-
-| Test | Result |
-| --- | --- |
-| `POST /chat` with only `question` | `200`, response has `response` and a 2-message `message_history` |
-| Send the returned history back with a second question | `200`, history now has 4 messages. The model received the first request (with the system prompt), the first answer, and the new question. |
-| Third turn | 6 messages, and only **one** system prompt in the whole history |
-| `message_history` set to `null` | `422` |
-| `question` as a number, or missing | `422` |
-| `GET /chat` | `405 Method Not Allowed` |
-| Frontend after the API returns an error body | `message_history` becomes `None`, the page prints `None`, and the next request sends `null` (see gotchas) |
-
----
-
-## 8. Gotchas
-
-| Gotcha | Why | What to do |
-| --- | --- | --- |
-| **The chat breaks after one error.** | If the API returns an error, `response.get("message_history")` is `None` (line 72). The next request sends `null`, which `ChatRequest` rejects with `422`. I reproduced this. | Refresh the page to reset. A real fix would check the status code before saving. |
-| **API not running** | `frontend.py` calls `127.0.0.1:8000` with no error handling | Start the backend first. You get a connection error from `httpx`. |
-| **Slow model, `ReadTimeout`** | `httpx` waits **5 seconds** by default and `frontend.py` sets no timeout | Add `timeout=60` to `httpx.post` if the model is slow. (Lecture 01 used `timeout=` on the agent for the same reason.) |
-| **Long chats get slower and costlier** | The whole history is sent every turn (picture C) | Trim old messages for long chats. This is a later topic. |
-| **Refresh = lost chat** | The history lives in the tab's session state, not in a database | Fine for a demo. A real app would store it. |
-| **`/chat` in the browser gives 405** | GET is not allowed | Use `/docs` |
-| **404 / 429 / 503 from Gemini** | Retired model, free quota used, or overload | Change the string in `constants.py` |
-| **Key not found, server will not start** | The Agent is created at import and needs the key | Check `.env`, and that `load_dotenv()` is before `Agent(...)` |
-| **Port in use** | An old server is still running | Stop it, or use another port |
-| **Two system prompts** | `chat_agent.py` line 55 and notebook cell `[1]` differ slightly | The page uses the one in `chat_agent.py` |
-| **"Ro Båt:" is not in the history** | The label is added for display only (line 81) | The AI never sees it |
-| **Raw answer shown twice** | Line 78 `st.write` plus the bubble | Delete line 78 if it bothers you |
-| **The address is hard-coded** | `http://127.0.0.1:8000/chat` in line 65 | Deploying later means this changes |
-| **Valid is not true** | The bot can say anything, and it still passes `ChatResponse` | Content checking comes later in the course |
-
----
-
-## 9. Where this connects
-
-| In 05 | Comes from | Goes to |
-| --- | --- | --- |
-| `Agent(MODEL, system_prompt=...)` | Lecture 02 (`system_prompt`) | Lecture 06 uses `instructions` instead |
-| `message_history` / `all_messages()` | Lecture 02 (picture B) | The root `README.md` topics on tracing, where you can see every message |
-| `async def` + `await agent.run` | Lecture 01 (`await`) | Lecture 06 `main.py` |
-| `app = FastAPI()` + `@app.post` | Lecture 04 | Same pattern |
-| `ChatRequest` validating input | Lecture 04 (`Prompt`) | |
-| `ChatResponse` | Lecture 04 (`Movie` as response) | |
-| `MODEL_SMALL` string | Lecture 04 (`"google:..."`) | Lecture 06 goes back to the Nvidia helper `model.py` |
-| Notebook cell `[7]`: the bot cannot know the weather | Lecture 02 (the foggy Göteborg question) | **Lecture 06: a weather tool fixes exactly this** |
-| Two programs, two terminals | New | Deployment later in the course: two things to run, so two things to deploy |
-
-```
-04   Agent behind one endpoint  ─►  stores a Movie
-05   Agent behind /chat         ─►  + history, + a web page that calls it
-06   Agent that can call your Python functions (tools), so it can answer "the weather in Stockholm"
-```
-
----
-
-## 10. Glossary (new words in 05)
+## 7. Glossary (new words in 05)
 
 | Term | Meaning |
 | --- | --- |
@@ -382,60 +318,3 @@ I ran your real code on **copies**, with a fake AI model, so no quota was used a
 | **Timeout** | How long to wait for a reply before giving up. |
 
 ---
-
-## 11. Check yourself
-
-Try to answer before opening each one.
-
-<details><summary>1. Why are there two programs, and which file does each one start from?</summary>
-
-The page (`frontend.py`, run with Streamlit) and the backend (`api.py`, run with uvicorn). Splitting them means the AI code and the page can change independently, and another frontend could call the same API.
-</details>
-
-<details><summary>2. The model has no memory. How does the bot remember what you said earlier?</summary>
-
-The backend returns `result.all_messages()` after every answer. The frontend stores it in `st.session_state.message_history` and sends it back with the next question. The agent receives it through `message_history=`.
-</details>
-
-<details><summary>3. Why does <code>frontend.py</code> keep both <code>messages</code> and <code>message_history</code>?</summary>
-
-`messages` is for display (role and text). `message_history` is in Pydantic AI's format and goes back to the AI. They hold different formats for different jobs.
-</details>
-
-<details><summary>4. What does it mean that Streamlit "re-runs the script"?</summary>
-
-After every interaction the whole script runs again from the top, so ordinary variables reset. Anything to remember goes in `st.session_state`, and old messages have to be redrawn each time.
-</details>
-
-<details><summary>5. Which file validates the incoming JSON, and what happens if it is wrong?</summary>
-
-FastAPI does, using `ChatRequest` in `api.py` (the `request: ChatRequest` parameter). A wrong shape gets an automatic `422` and `chat()` is never called.
-</details>
-
-<details><summary>6. Why does a long conversation get more expensive?</summary>
-
-The entire history is sent to the model every turn, so the input grows by two messages each turn.
-</details>
-
-<details><summary>7. In the notebook, why can the bot answer "what did I ask first?" in cell <code>[8]</code> but not in cell <code>[4]</code>?</summary>
-
-Cell `[8]` passes `message_history=`. Cell `[4]` does not, so the model sees only the new question.
-</details>
-
-<details><summary>8. What happens in the page after the API returns an error, and why?</summary>
-
-`response.get("message_history")` returns `None` and is saved. The next request sends `null`, which `ChatRequest` rejects with `422`, so the chat stays broken until you refresh.
-</details>
-
-<details><summary>9. Why does opening <code>/chat</code> in the browser give 405?</summary>
-
-A browser address bar sends GET, and the endpoint only accepts POST.
-</details>
-
----
-
-## 12. My questions
-
-Add questions here as you read, then ask Claude to answer them in this file.
-
-- [ ]

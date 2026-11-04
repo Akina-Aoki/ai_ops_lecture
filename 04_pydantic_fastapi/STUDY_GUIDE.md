@@ -19,7 +19,8 @@ This lecture has no notebook. It is four small Python files in `src/`, so refere
 
 ## 1. The 30-second version
 
-Until now the AI lived inside a notebook. Only you could use it. Lecture 04 puts it **behind a web address**, so any program (a web page, another service, a script) can use it by sending a request.
+- Until now the AI lived inside a notebook. Only you could use it. 
+- Lecture 04 puts it **behind a web address**, so any program (a web page, another service, a script) can use it by sending a request.
 
 The example app is a movie list:
 
@@ -125,7 +126,7 @@ Two Pydantic models, lines 25 to 53.
 1. the `output_type` for the AI (so the LLM must reply with these fields), and
 2. the return value of the endpoint (so the API's response has the same fields).
 
-The shape is written once and reused. If you add a field here, the AI, the endpoint and the response all change together. The database table does **not** change on its own (see gotchas).
+The shape is written once and reused. If you add a field here, the AI, the endpoint and the response all change together. The database table does **not** change on its own.
 
 ### 4.2 `setup_db.py` — create the table once
 
@@ -250,67 +251,7 @@ Needs an API key: put `Gemini_API_Key=...` in the repo's `.env` (get one at Goog
 
 ---
 
-## 6. What I tested
-
-I ran your real code on a **copy** of the project, with a fake AI model, so your database and your quota were untouched.
-
-| Test | Result |
-| --- | --- |
-| `GET /movies` | `200`, returns the two stored movies |
-| `POST /movie` with a normal prompt | `200`, returns the new movie, and `GET /movies` then shows it |
-| The fake AI first answered `rating = 6` | Pydantic rejected it, the error went back, the AI retried with `5`. Two model calls, one saved row. |
-| `POST /movie` with `{"wrong": "x"}` | `422`, message "Field required" for `body.prompt`. The AI was never called. |
-| A title containing `'); DROP TABLE movies;--` | Saved as plain text. The table survived. |
-| The app's address list | `/movies` and `/movie` (plus FastAPI's built-in docs pages) |
-
----
-
-## 7. Gotchas
-
-| Gotcha | Why | What to do |
-| --- | --- | --- |
-| **`ModuleNotFoundError: utils`** | You started the server from the wrong folder | `cd` into `src/` first |
-| **Server will not start, key error** | No API key found when the Agent is created on line 52 | Check `.env` has the Gemini key, and that `load_dotenv()` runs first |
-| **404 / 429 / 503 from the model** | Google retires models (404), limits the free tier (429), or is overloaded (503) | Try another model name on line 52 |
-| **The database does not enforce 1 to 5** | `rating TINYINT` has no `CHECK` rule. Only Pydantic stops a 6. | Any other code that writes to the table can store a 6. Add a `CHECK` if it matters. |
-| **Changing `Movie` does not change the table** | The table was created once by `setup_db.py` | Change the table yourself too, and keep the column order |
-| **Positional insert** | `VALUES (?,?,?,?)` has no column names | If the order of fields and columns drifts apart, data lands in the wrong column |
-| **Every POST adds a row** | There is no duplicate check | Sending the same prompt twice creates two rows |
-| **Every POST costs an AI call** | Plus a retry if validation fails | Watch your free quota |
-| **Valid is not true** | The AI can invent a movie or a wrong year, and it still passes validation | Never trust the content just because the shape is right |
-| **One writer at a time** | DuckDB lets one process write to the file at a time | Do not open the same `.duckdb` file in a notebook while the API is writing |
-| **README is stale** | It says the code uses OpenRouter, but it uses Gemini. It also has the typo `python -dotenv`. | Use `python-dotenv` and the Gemini key |
-| **The database is in git** | `data/movies.duckdb` is a tracked binary file | Every insert changes it, so `git status` shows it modified |
-| **Blocking calls in `async def`** | `query_duckdb` is not async, so it pauses the server for the moment it runs | Fine for a small file database. A big query would block other requests. |
-
----
-
-## 8. Where this connects
-
-| In 04 | Comes from | Goes to |
-| --- | --- | --- |
-| `Agent` + `await agent.run` | Lecture 01 | Lecture 05 `chat_agent.py` (same pattern inside an endpoint) |
-| `output_type=Movie` | Lecture 03 (`output_type=EmployeeModel`) | Lecture 06 uses plain text output, with tools |
-| `Prompt` validating the request | New: Pydantic for **incoming** data | Lecture 05 `ChatRequest` does the same job for chat messages |
-| `Movie` as response | New: one model, used twice | Lecture 05 `ChatResponse` |
-| `"google:gemini-flash-lite-latest"` | New: the model-string shortcut | Lecture 05 `constants.py` keeps these strings in one place |
-| `load_dotenv()` before the Agent | Lecture 01 | Every later file |
-| `app = FastAPI()` and decorators | New | Lecture 05 `api.py` |
-| `ModelSettings` imported, unused (line 31) | Lecture 02 (temperature) | Not used here. It is where you would tune the model. |
-
-```
-01-03  an Agent in a notebook
-  │
-04     the same Agent behind a web address (FastAPI) + saved to a database (DuckDB)
-  │
-05     a web page (Streamlit) that calls the web address, and a chat history
-  │
-06     the Agent can call your Python functions
-```
-
----
-
-## 9. Glossary (new words in 04)
+## 6. Glossary (new words in 04)
 
 | Term | Meaning |
 | --- | --- |
@@ -328,55 +269,3 @@ I ran your real code on a **copy** of the project, with a fake AI model, so your
 | **`--reload`** | uvicorn option that restarts when you save |
 
 ---
-
-## 10. Check yourself
-
-Try to answer before opening each one.
-
-<details><summary>1. What is the difference between FastAPI and uvicorn?</summary>
-
-FastAPI is the library where you define the endpoints (the app). uvicorn is the server program that listens on a port and passes requests to that app. `uvicorn movies_api:app` means "run the `app` variable from `movies_api.py`".
-</details>
-
-<details><summary>2. Where does Pydantic check data in <code>POST /movie</code>?</summary>
-
-Twice. FastAPI checks the incoming body against `Prompt`. Pydantic AI checks the AI's answer against `Movie`.
-</details>
-
-<details><summary>3. What happens if the AI answers with <code>rating = 6</code>?</summary>
-
-Validation fails (`gt=0, lt=6`), the error is sent back to the model, and it tries again. I saw two model calls and one saved row.
-</details>
-
-<details><summary>4. Why does the <code>INSERT</code> use <code>?</code> instead of putting the values into the SQL text?</summary>
-
-To stop SQL injection. The values are passed separately and stored as plain text, never run as SQL.
-</details>
-
-<details><summary>5. Why must <code>load_dotenv()</code> come before <code>Agent(...)</code> on lines 38 and 52?</summary>
-
-The Agent looks for the API key when it is created. Without the key in the environment, creating it fails and the server does not start.
-</details>
-
-<details><summary>6. Why do you start the server from inside <code>src/</code>?</summary>
-
-The file imports <code>utils</code> and <code>data_models</code> by name, and Python finds them in the current folder.
-</details>
-
-<details><summary>7. The database column <code>rating</code> is a TINYINT. What stops someone storing a 6 there?</summary>
-
-Nothing in the database. Only the Pydantic `Movie` model does, and only for data that goes through the API.
-</details>
-
-<details><summary>8. What does <code>query_duckdb("FROM movies;")</code> return, and why?</summary>
-
-A pandas DataFrame, because the SQL starts with `from`, which `utils.py` treats as a read statement.
-</details>
-
----
-
-## 11. My questions
-
-Add questions here as you read, then ask Claude to answer them in this file.
-
-- [ ]

@@ -2,7 +2,7 @@
 
 - [Lecture Video](https://youtu.be/mp650k5T2T8)
 
-- ![PydanticAI FastAPI Architecture](04_pydanticai_fastapi.png) 
+- ![PydanticAI FastAPI Architecture](04_pydantic_fastapi.png) 
 
 ## Install dependencies
 ```

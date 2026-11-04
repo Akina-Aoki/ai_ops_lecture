@@ -125,4 +125,4 @@ def geocode(city: str) -> dict:
 # web request) every time ANY file imports tools.py - e.g. each time you run
 # main.py you'll see its printed output first. Delete it once you're done testing.
 # print(get_weather(23, 41))
-print(geocode("gothenburg"))
+# print(geocode("gothenburg"))

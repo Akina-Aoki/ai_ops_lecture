@@ -1,10 +1,5 @@
 # Study guide: 06 Tool use
 
-Keep this open next to the code in VS Code. Open the file named in the table, then read the matching section here.
-This guide explains the **why**. The docstrings and comments in the files already explain the **what**.
-
-This lecture has five Python files, one small leftover file, and one notebook. References look like `tools.py` line 80, or notebook cell `[3]`.
-
 | When you are reading... | Read this section |
 | --- | --- |
 | The big idea | [1. The 30-second version](#1-the-30-second-version) and [2. The pictures](#2-the-pictures-to-understand) |
@@ -14,7 +9,6 @@ This lecture has five Python files, one small leftover file, and one notebook. R
 | `main.py` | [4.4 main.py](#44-mainpy--the-script-you-run) |
 | `deps.py` | [4.5 deps.py](#45-depspy--an-unused-copy) |
 | `tools_basics.ipynb` | [5. The notebook](#5-the-notebook-tools_basicsipynb) |
-| Any later lecture | [9. Where this connects](#9-where-this-connects) |
 
 ---
 
@@ -49,7 +43,7 @@ A **tool** fixes that. You write an ordinary Python function and tell the model 
  Nvidia model  ◄──►  Open-Meteo weather API (free, no key)
 ```
 
-`deps.py` is not part of this picture. Nothing imports it (see 4.5).
+`deps.py` is not part of this picture. Nothing imports it.
 
 ### Picture B: the tool loop
 
@@ -337,73 +331,8 @@ The notebook needs the `.venv` kernel and the same `.env`.
 
 ---
 
-## 7. What I tested
 
-I ran your real `tools.py`, `agents.py` and `model.py` on a **copy**, with a fake model and fake web replies, so there were no real requests and no quota used.
-
-| Test | Result |
-| --- | --- |
-| Import `tools.py` | One call to the geocoding API (faked in my test) and one printed dict, both from line 128 |
-| What the model is shown | `get_weather`: described, params `lat`, `lon`. `geocode`: **no description**, param `city`. `ctx` hidden. |
-| The tool loop for "weather in Skövde" | 3 model calls, 2 web calls, messages in the order shown in picture B |
-| Ask about "Paris" with `deps=WeatherDeps(city="London")` | The tool returned "Current temperature in **London** is ..." |
-| Run the agent with no `deps` at all | `AttributeError: 'NoneType' object has no attribute 'city'` |
-| `geocode` for a city the API does not know | `TypeError: 'NoneType' object is not subscriptable`. The whole run fails. |
-| `deps.py` vs `tools.py` | Two different `WeatherDeps` classes |
-
-I did **not** test the real Nvidia model, so I cannot say how well it follows the "decline non-weather questions" instruction. Your `main.py` is meant to show that.
-
----
-
-## 8. Gotchas
-
-| Gotcha | Why | What to do |
-| --- | --- | --- |
-| **`print(geocode("gothenburg"))` runs on every import** (`tools.py` line 128) | It is not commented out | Delete it, or comment it out |
-| **The city label can be wrong** | The reply uses `ctx.deps.city`, not the question. Asking about Paris with `deps=WeatherDeps(city="London")` returns "London". | Keep the question and the deps in agreement, or have the tool use the coordinates to find the name |
-| **Unknown city crashes the run** | `geocode` indexes `[0]` on a missing result | Check for `None` first. A tool can raise `ModelRetry("...")` to tell the model to try again with different arguments. I tested it: the message went back to the model, and it called the tool again with a different city. |
-| **Forgot `deps=`** | `ctx.deps` is `None` | Always pass `deps=` when the agent has `deps_type` |
-| **`geocode` has no docstring** | The model sees only the name | Add `"""get latitude and longitude for a city name"""` |
-| **Tool calls are extra model calls** | Each step is another request with the whole history | Keep tools few and clear. Watch cost and speed. |
-| **The guardrail is only a sentence** | `instructions` is a request to the model | Do not rely on it for anything important |
-| **`temperature_2m` is "current"** | The API returns the latest value for that place | It is not a forecast |
-| **Weather API down or slow** | `get_weather` has `timeout=30`, `geocode` has no timeout | Add `timeout=` to `geocode` too (httpx waits only 5 seconds by default) |
-| **Wrong folder** | Imports are by file name | `cd 06_tool_use` first |
-| **`deps.py` is unused** | An older copy | Safe to ignore, or delete |
-| **Cell order in the notebook** | Cell `[3]` adds tools to the same agent | Run top to bottom |
-| **The dice rules disagree** | The tool is a d20, the instructions do not say | Put the sides in `instructions` |
-| **The model hallucinates** | Even with tools it can ignore them and guess | Tell it to use the tools (as the instructions do), and check the messages for `ToolCallPart` |
-
----
-
-## 9. Where this connects
-
-| In 06 | Comes from | Goes to |
-| --- | --- | --- |
-| The model cannot know the weather | Lecture 02 (foggy Göteborg), lecture 05 notebook cell `[7]` | Solved here |
-| `ToolCallPart` / `ToolReturnPart` | Lecture 02, picture B (message parts) | The tool loop is more entries in the same message list |
-| Tool description from name, types and docstring | Lecture 03 (`Field(description=...)`, JSON schema) | |
-| `instructions=` | Lecture 03 | |
-| `nvidia_model()` | Lecture 01 cell `[2]` and `03/model.py` | |
-| `asyncio.run` | Lecture 01 (`await`, `run_sync`) | |
-| `deps` and `RunContext` | New | Anything an agent needs from your code, like a database connection |
-| `ModelSettings(thinking="minimal")` | Lecture 02 (tokens, reasoning, settings) | |
-| The tool loop makes several model calls | Lecture 05 picture C (history grows) | Tracing with Logfire later shows each call |
-| Tools read from the outside world | | The root `README.md` lists **RAG**, **LanceDB** and **MCP** later. A RAG retriever is a tool that reads your documents. I have not read that material yet, so treat this as the likely direction. |
-
-```
-01   ask a question
-02   control it and look inside it
-03   get structured answers
-04   put it behind a web address and a database
-05   add memory and a web page
-06   let the model call YOUR functions to get real data      ◄── you are here
-07+  see what it did (tracing), judge it (evaluation), feed it documents (RAG), deploy it
-```
-
----
-
-## 10. Glossary (new words in 06)
+## 7. Glossary
 
 | Term | Meaning |
 | --- | --- |
@@ -423,65 +352,3 @@ I did **not** test the real Nvidia model, so I cannot say how well it follows th
 | **`ModelRetry`** | An exception a tool can raise to make the model try again. |
 
 ---
-
-## 11. Check yourself
-
-Try to answer before opening each one.
-
-<details><summary>1. Who actually runs <code>get_weather</code>: the model or your code?</summary>
-
-Your code. The model only returns a request ("call `get_weather` with lat and lon"). Pydantic AI runs your function and sends the return value back.
-</details>
-
-<details><summary>2. How does the model know what a tool does?</summary>
-
-From a description built from the function name, the parameter names and types, and the docstring. It never sees the function body.
-</details>
-
-<details><summary>3. Why are there two tools for one weather question?</summary>
-
-The weather API needs coordinates, but users give city names. `geocode` turns a name into coordinates, then `get_weather` uses them. The model chains them itself.
-</details>
-
-<details><summary>4. How many model calls did "weather in Skövde" take, and why?</summary>
-
-Three in my test: one that requested `geocode`, one that requested `get_weather`, and one that wrote the final answer.
-</details>
-
-<details><summary>5. What are deps, and why not just put the city in the prompt?</summary>
-
-Deps are data your code hands to the tools, hidden from the model. Information your code knows (a user, a connection, a setting) should not depend on the model guessing it correctly.
-</details>
-
-<details><summary>6. Why is the <code>ctx</code> parameter missing from what the model sees?</summary>
-
-Pydantic AI fills it in and hides it. The model only chooses the real parameters, `lat` and `lon`.
-</details>
-
-<details><summary>7. What is the difference between <code>@agent.tool</code> and <code>@agent.tool_plain</code>?</summary>
-
-`tool` functions take `ctx: RunContext[...]` first and can use `ctx.deps`. `tool_plain` functions take no context.
-</details>
-
-<details><summary>8. Why must <code>main.py</code> pass <code>deps</code> even for the joke question?</summary>
-
-The agent was built with `deps_type=WeatherDeps`, and the tools read `ctx.deps`. Without `deps`, a tool that uses `ctx.deps.city` raises an `AttributeError`. For the joke question no tool should run, but passing deps keeps the call consistent.
-</details>
-
-<details><summary>9. What happens if you ask for a city that does not exist?</summary>
-
-`geocode` finds no results, tries `[0]` on `None`, and raises a `TypeError`. The whole run fails, because nothing catches it.
-</details>
-
-<details><summary>10. Why is the "decline non-weather questions" rule not a real guardrail?</summary>
-
-It is a sentence the model is asked to follow. Nothing in your code enforces it.
-</details>
-
----
-
-## 12. My questions
-
-Add questions here as you read, then ask Claude to answer them in this file.
-
-- [ ]
