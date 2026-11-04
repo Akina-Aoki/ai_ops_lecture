@@ -3,8 +3,8 @@
 
 **Setup Nvidia Build API and PydanticAI**
 
-[Setup Video](https://youtu.be/_wzRJde6r5M)
-
+- [Setup Video](https://youtu.be/_wzRJde6r5M)
+- [Nvidia Models](https://build.nvidia.com/models)
 
 
 
@@ -43,9 +43,10 @@ it will create the following for you
 ```
 
 4. Install neccessary packages
+Check in `pyproject.toml` after installation
 
 ```bash
-uv add pandas pydantic-ai ipykernel
+uv add pandas pydantic-ai ipykernel duckdb fastapi matplotlib python-dotenv streamlit uvicorn
 ```
 
 We will install more packages when needing them
