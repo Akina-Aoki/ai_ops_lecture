@@ -37,7 +37,6 @@ Using the following tools:
 
 
 # Study Map
-# Study map
 
 One study guide per lecture folder, written to sit next to the code in VS Code.
 Each guide explains the **why**, how the lecture **connects to other files**, and ends with a "My questions" section.

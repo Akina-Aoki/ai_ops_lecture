@@ -33,7 +33,7 @@ The example asks "What is the weather in Skövde?". The weather API needs coordi
 | What a tool does | No tools | Calls a web API (`geocode`, `get_weather`) | Calls another agent, or runs Python |
 | Extra data for the run | None | `deps=WeatherDeps(city=...)` | `deps=ClientDeps(...)` shared with all agents |
 | Around the agent | FastAPI + Streamlit | A script | A script |
-| Cost of one question | 1 model call | **3 model calls** here | At least 6 |
+| Cost of one question | 1 model call | **3 model calls** here | 5 in a real run |
 
 ```
 05  You ──► agent                              remembers the conversation
