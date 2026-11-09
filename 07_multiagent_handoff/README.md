@@ -117,7 +117,7 @@ uv run main.py
 
 You should see the coach's short answer printed, and a new file in [exports/](exports/).
 
-**What it costs:** one question made at least **6 model calls** in my test run (4 for the coach, 1 for each expert), compared with 1 to 3 in lectures 05 and 06. More agents means more calls, more time and more tokens.
+**What it costs:** one question made **5 model calls** in a real run (3 for the coach, 1 for each expert), plus about 1,800 hidden "thinking" tokens, compared with 1 to 3 calls in lectures 05 and 06. More agents means more calls, more time and more tokens.
 
 ## 6. Known quirks
 
@@ -125,6 +125,7 @@ You should see the coach's short answer printed, and a new file in [exports/](ex
 | --- | --- | --- |
 | Only `name` is ever used | [dependencies.py](dependencies.py) | `goal`, `experience_lvl`, `weekly_hours` and `current_role` are never read by any agent |
 | `export_report` returns nothing | [agents.py](agents.py) | The coach cannot tell you where the file was saved |
+| Saving needs `encoding="utf-8"` | [agents.py](agents.py) | On Windows, without it the run crashes on characters like `→` and leaves an empty report (fixed) |
 | Trailing comma after the career string | [agents.py](agents.py) | `instructions` becomes a 1-item tuple. It still works, but it is probably a typo. |
 
 More detail on each of these is in the [STUDY_GUIDE.md](STUDY_GUIDE.md), section 6.

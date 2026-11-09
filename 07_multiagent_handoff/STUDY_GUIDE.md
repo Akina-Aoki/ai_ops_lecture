@@ -89,7 +89,7 @@ ModelResponse  TextPart         FINAL
 
 Notice what is **not** in the coach's list: the specialists' own conversations. The coach only sees what each tool *returns*. The specialist runs are separate, short conversations.
 
-**What this costs.** In that run the shared usage counter said `requests=6, tool_calls=3`: 4 calls for the coach and 1 for each specialist. A real run is at least that many. Delegation gives you experts, and it also makes things slower and more expensive.
+**What this costs.** In that fake run the shared usage counter said `requests=6, tool_calls=3`: 4 calls for the coach and 1 for each specialist. A **real** run (Nvidia model, after the encoding fix) said `requests=5, tool_calls=3`: the real coach asked for both specialists in one response, so it needed only 3 calls itself. Delegation gives you experts, and it also makes things slower and more expensive.
 
 ### Picture C: what the coach model is shown about its tools
 
@@ -239,7 +239,7 @@ Every agent run counts its tokens and model requests in a usage counter. Without
 | Total of the whole run | You must add them up yourself | `result.usage` of the coach already includes everything |
 | Usage limits | A limit on the coach does not cover the experts | The limit covers the whole run |
 
-Unlike `deps`, leaving it out does not crash. The code still works, you just lose the combined total. In my fake run the shared counter showed `requests=6, tool_calls=3`.
+Unlike `deps`, leaving it out does not crash. The code still works, you just lose the combined total. In a real run the shared counter showed `requests=5, tool_calls=3`.
 
 **`await`: "wait here until it finishes"**
 
@@ -469,8 +469,9 @@ Differences from the `.py` version:
 4. **A name like `Anna Berg` or `a/b` goes into the file name.** Spaces are fine, but `/` or `:` would break the path. Sanitise it if names come from users.
 5. **The `career_agent` trailing comma** (`"...career paths.",`) makes `instructions` a tuple. PydanticAI accepts a sequence, and I confirmed the agent still runs, so it is harmless, but it is a typo-style slip. The notebook version has no comma.
 6. **The order is requested, not enforced.** The model might skip a step, call a tool twice or export before combining. For anything that must happen, check in code.
-7. **Cost grows with each delegation.** Each tool call is a model call, and the coach re-sends its growing message list every time (lecture 02). Three agents means at least 6 calls per question.
-8. **Calls run one after another.** Study and career answers do not depend on each other, so in principle they could run at the same time, but the numbered recipe makes them sequential.
+7. **Cost grows with each delegation.** Each tool call is a model call, and the coach re-sends its growing message list every time (lecture 02). Three agents meant 5 model calls per question in a real run (plus hidden thinking tokens).
+8. **The order of the experts is up to the model.** The recipe lists study first, then career, but in a real run the model asked for **both in the same response**, and PydanticAI ran those two tools together. Do not rely on a fixed order.
+9. **Windows crash: `UnicodeEncodeError: 'charmap' codec can't encode character '→'`.** `Path.write_text(text)` uses Windows' default encoding (cp1252), which cannot write characters such as `→` that the model often puts in its answer. `export_report` crashed after creating an **empty** file, so the run printed only the startup banner and no answer. Fixed with `path.write_text(text, encoding="utf-8")`. It is the same bug as lecture 01's cell `[7]`.
 
 ---
 

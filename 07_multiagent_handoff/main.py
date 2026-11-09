@@ -31,16 +31,16 @@ async def main(prompt: str, **kwargs):
 if __name__ == "__main__":
     # The deps object: the data every agent can read via `ctx.deps`.
     client = ClientDeps(
-        name="Bobby",
-        goal="Looking for study opportunities and work opportunities within data engineering",
+        name="Aira",
+        goal="Looking for study opportunities and work opportunities within data engineering as a junior level",
         experience_lvl="intermediate",
-        weekly_hours=16,
-        current_role="IT supporter",
+        weekly_hours=10,
+        current_role="Data Engineer graduate",
     )
     # asyncio.run starts the event loop and runs our async main() until finished.
     asyncio.run(
         main(
-            "I'm learning Python and want to become a data engineer. What should I do?",
+            "I'm learning AI Engineering and want to become a data engineer. What should I do?",
             deps=client,
         ),
     )

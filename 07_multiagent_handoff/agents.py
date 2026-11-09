@@ -140,6 +140,8 @@ def export_report(ctx: RunContext[ClientDeps], text: str):
     exports_dir.mkdir(exist_ok=True)  # create folder if missing, no error if present
     # Filename example: exports/bobby_20261109_083600.md (casefold = lowercase)
     path = exports_dir / f"{ctx.deps.name.casefold()}_{timestamp}.md"
-    path.write_text(text)
+    # encoding="utf-8" is required on Windows: the default (cp1252) cannot write
+    # characters like "→" that the model often uses, and the run would crash.
+    path.write_text(text, encoding="utf-8")
     # No return value -> the LLM just receives "None" as the tool result.
     # Returning the path (str(path)) would let the coach tell the user where it was saved.
