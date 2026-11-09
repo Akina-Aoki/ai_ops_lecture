@@ -2,6 +2,7 @@
 
 **Part 1 - logging and prompt management**
 - ![Video: Pydantic Logfire + PydanticAI](https://www.youtube.com/watch?v=hG-jJy2o5Ok)
+- [Pydantic Logfire Account](https://pydantic.dev/logfire)
 
 <!-- **Part 2 - LLM judge** -->
 
@@ -88,6 +89,7 @@ uv add logfire
 uv run logfire auth
 uv add "logfire[variables]"
 uv add "logfire[system-metrics]"
+uv add pydantic-ai-harness
 ```
 
 ## Concepts

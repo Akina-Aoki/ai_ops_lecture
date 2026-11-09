@@ -53,8 +53,9 @@ logfire.configure(
 )
 
 
+
 def get_prompt(
-    name: str, default: str = "be a jokey assistant", label: str = "production"
+    name: str = "coach_agent_instructions", default: str = "be a jokey assistant", label: str = "latest"
 ):
     """Fetch one prompt from Logfire and return its text.
 
@@ -84,10 +85,10 @@ def get_prompt(
     # Pick the version that carries the requested label.
     resolved = prompt.get(label=label)
     # Debug print so you can see WHICH version/label was loaded in the terminal.
-    print(resolved.version, resolved.label)
+    # print(resolved.version, resolved.label)
     return resolved.value  # the actual prompt text
 
 
 # Handy for testing this file alone: `python prompts.py` prints one prompt.
 if __name__ == "__main__":
-    print(get_prompt("coach_agent_instructions"))
+    print(get_prompt(label="production"))
