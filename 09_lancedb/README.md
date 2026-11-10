@@ -1,8 +1,6 @@
 # LanceDB to be used as vector database
-
-![Lecture 09 architecture](architecture_09.png)
-
-
+- [Create Cohere API Key](https://dashboard.cohere.com/)
+- [IBM Vector Db Video](https://www.youtube.com/watch?v=gl1r1XV0SLw)
 - [Video: Part 1 | LanceDB Basics](https://youtu.be/pQMEhbrXT4A)
 - [Video: Part 2 | LanceDM Custom Embeddings](https://youtu.be/GDJuPBRn7aM)
 
@@ -119,7 +117,7 @@ custom_embeddings/nvidia_nemotron.py ────┘   imported in the "Custom e
 ## Setup 
 
 ```bash
-uv add lancedb sentence-transformers cohere
+uv add lancedb sentence-transformers cohere google-generativeai
 ```
 
 > The original line said `sentence-transformer` (no `s` at the end). The package is called `sentence-transformers`. `cohere` is the library behind the Cohere embeddings. They are already added to `pyproject.toml` (run `uv sync` on a fresh clone to install them). The `openai` and `python-dotenv` packages come with `pydantic-ai`.
