@@ -8,7 +8,7 @@
 | Keyword vs vector vs hybrid | [3.5](#35-three-kinds-of-search) |
 | `lancedb_basics.ipynb` | [4.1](#41-lancedb_basicsipynb--part-1) |
 | `lancedb_embeddings.ipynb` | [4.2](#42-lancedb_embeddingsipynb--part-2) |
-| `custom_embeddings/nvidia_nemotron.py` | [4.3](#43-custom_embeddingsnvidia_nemotronpy--your-own-embedder) |
+| `custom_embeddings/nvidia_nemotron.py` | [4.3 line table](#43-custom_embeddingsnvidia_nemotronpy--your-own-embedder) and the step-by-step [4.5 Deep dive](#45-deep-dive-understanding-nvidia_nemotronpy) |
 | The two JSON files | [4.4](#44-the-two-json-files) |
 | Installing and running | [5. Setup and running](#5-setup-and-running) |
 | Things that can bite you | [6. Gotchas](#6-gotchas-and-things-to-improve) |
@@ -340,7 +340,140 @@ Same idea, different embedding models. Also commented cell by cell.
 
 ### 4.3 `custom_embeddings/nvidia_nemotron.py` — your own embedder
 
-Read the docstrings in the file: it has a module docstring that draws the flow.
+This is the hardest file of the lecture if embeddings and vectors are new to you. So this section goes slowly: first **what an embedding is, in data terms**, then **what the file does in plain words**, then the **line-by-line reference table**. Read in that order.
+
+| Part | What you get |
+| --- | --- |
+| [A. What is an embedding?](#a-what-is-an-embedding-in-data-terms) | The idea, with a tiny example you can check by hand |
+| [B. Where the file sits in the pipeline](#b-where-the-file-sits-in-the-pipeline) | The file is the **Transform** step of an ETL |
+| [C. The file in plain words](#c-the-file-in-plain-words) | Each piece, explained as a data concept |
+| [D. Reference: the line table](#d-reference-the-line-table) | Line numbers and meaning (the original table) |
+| [E. Questions beginners ask](#e-questions-beginners-ask) | The "but why?" answers |
+
+For an even slower walk through the Python side (decorator, inheritance, who calls what, how to test it), read [4.5 Deep dive](#45-deep-dive-understanding-nvidia_nemotronpy) afterwards.
+
+#### A. What is an embedding, in data terms
+
+**The problem.** A computer can compare numbers easily (`5 < 7`) and can check if two strings are *equal* (`"cat" = "cat"`). But it cannot tell that `"kitten"` is *about the same thing* as `"cat"`, or that `"invoice"` is about something else. A `WHERE text = 'cat'` filter misses `"kitten"`.
+
+**The fix.** Turn each text into a **row of numbers** (a *vector*, in SQL terms an array column like `FLOAT[4096]`) so that:
+
+> texts with **similar meaning** get **similar numbers**, and texts with different meaning get different numbers.
+
+The function that does this is called an **embedding model**. You give it text, it gives back an array of numbers. That output array is the **embedding**.
+
+| Data word | In this lecture |
+| --- | --- |
+| Input column | `jokes` (text) |
+| Transformation function (think of a UDF) | the embedding model |
+| Output column | `vector` (an array of `FLOAT`, here 4096 numbers) |
+| "Feature" (as in machine learning) | the vector: numbers that describe the text so a computer can compare it |
+
+**A tiny example you can check by hand.** Pretend the model only used **3 numbers** (real models use hundreds or thousands; the numbers are made up):
+
+| Text | Vector (3 numbers) |
+| --- | --- |
+| `"cat"` | `[0.90, 0.80, 0.10]` |
+| `"kitten"` | `[0.85, 0.75, 0.15]` |
+| `"invoice"` | `[0.10, 0.20, 0.95]` |
+
+You can see by eye that `cat` and `kitten` are close, and `invoice` is far from both. LanceDB measures that with a **distance** (smaller = more similar):
+
+| Pair | Calculation (squared difference per position, added up) | Distance |
+| --- | --- | --- |
+| cat ↔ kitten | 0.05² + 0.05² + 0.05² = 0.0025 + 0.0025 + 0.0025 | **0.0075** (very close) |
+| cat ↔ invoice | 0.80² + 0.60² + 0.85² = 0.6400 + 0.3600 + 0.7225 | **1.7225** (far) |
+
+That is all "search by meaning" is: **turn the question into numbers too, then return the rows with the smallest distance**. (The animals example in Picture D does exactly this.)
+
+**Three things to remember.**
+
+| Idea | Why it matters |
+| --- | --- |
+| **You never read the numbers.** Number 17 of 4096 does not mean "is it an animal" | Only the *distance between two vectors* means something |
+| **It is not a hash.** A hash makes `cat` and `kitten` totally different, on purpose. An embedding does the opposite: similar meaning, similar numbers | That is why it can power search |
+| **Only compare vectors from the same model.** Each model has its own "number language" | Store with NVIDIA, search with NVIDIA. Never mix |
+
+> **Data engineer view:** a normal column lets you join on **equality**. An embedding column lets you join on **closeness**. It is the same table and the same SQL ideas, with `ORDER BY distance(vector, :query) LIMIT k` instead of `WHERE text = :x`.
+
+**Size matters (storage maths).** Each number is a `float32` = 4 bytes. One row's vector is `dimensions × 4` bytes:
+
+| Model | Numbers per row | Bytes per row | 30 jokes | 1,000,000 rows |
+| --- | --- | --- | --- | --- |
+| Hand-made animals | 3 | 12 B | tiny | 12 MB |
+| Local e5-small | 384 | 1,536 B | ~46 KB | ~1.5 GB |
+| Cohere light | 384 or 1024 (depends on your LanceDB version) | 1.5 to 4 KB | ~46 to 123 KB | ~1.5 to 4 GB |
+| NVIDIA Nemotron (this file) | 4096 | 16,384 B (16 KB) | ~480 KB | **~16 GB** |
+
+Bigger vectors can capture finer detail, but cost more to store, move and compare. That is a real data-engineering trade-off.
+
+#### B. Where the file sits in the pipeline
+
+Think of the whole lecture as an **ETL**:
+
+```
+EXTRACT                 TRANSFORM                                        LOAD
+jokes.json  ──►  pandas DataFrame  ──►  [ embedding step ]  ──►  LanceDB table
+(30 texts)       (column "jokes")        NVIDIA turns each         (columns: jokes, vector)
+                                         text into 4096 numbers
+                                                 ▲
+                                                 │
+                              THIS FILE: nvidia_nemotron.py
+```
+
+`nvidia_nemotron.py` is **only the Transform step**. It does not store anything and it does not search anything. LanceDB does those. The file answers one question for LanceDB: *"how do I turn text into numbers using NVIDIA?"*
+
+Important: **the embedding model itself is not in this file.** It runs on NVIDIA's servers. The file only *calls* it over the internet (an API call), like calling an external transformation service. So the file is a thin wrapper.
+
+LanceDB uses the wrapper at two moments:
+
+| Moment | You write | LanceDB calls | It is like... |
+| --- | --- | --- | --- |
+| **Writing** the table | `table.add(df)` | `compute_source_embeddings` | The transform step of a **load** job, run on every new row |
+| **Reading** the table | `table.search("kemi")` | `compute_query_embeddings` | The same transform, applied to the **search question** so it can be compared with the stored rows |
+
+#### C. The file in plain words
+
+Here is each piece of the file with a data-concept translation. (Line numbers are in section D.)
+
+| Piece of the file | Plain words | Data concept |
+| --- | --- | --- |
+| `load_dotenv()` | Read the password file | Load **credentials** from config, not from the code |
+| `client = OpenAI(base_url=..., api_key=...)` | Open one connection to NVIDIA's server, with retries and a timeout | A **connection / client object**, created once and reused, like a database connection |
+| `class NvidiaNemotronEmbedding(TextEmbeddingFunction)` | "I am a kind of text-embedder; LanceDB already knows how to use those" | A **subclass that implements an interface**. LanceDB defines the shape; we fill in the NVIDIA part |
+| `@get_registry().register("nvidia-nemotron")` | "Write my name in LanceDB's directory so it can find me" | **Registering a connector** under a key (like adding a source type to a config) |
+| `model = "nvidia/nemotron-3.5-embed-8b"` | Which NVIDIA model to call | A **parameter** of the transform |
+| `dimensions = 4096` | How long the output array is | The **declared output schema**: `FLOAT[4096]` |
+| `ndims()` | Tell LanceDB the length | LanceDB uses it to build the **column type** of `vector` |
+| `_embed_one(text, input_type)` | Send **one** text, get **one** array back | The **row-level transform**; the only place that does I/O |
+| `generate_embeddings(texts)` | Do `_embed_one` for every text in the list | A **batch loop** over rows |
+| `compute_source_embeddings` | The entry LanceDB uses when **writing** | The "on insert" hook |
+| `compute_query_embeddings` | The entry LanceDB uses when **searching** | The "on query" hook |
+
+**Follow one joke through the file.** Say you run `table_jokes.add(df)` and the first joke is `"Never trust an atom, they make up everything."`
+
+```
+1. LanceDB:   "this column is a SourceField, I need vectors for it"
+              └─► compute_source_embeddings(["Never trust an atom...", ...30 jokes...])
+2. our file:  generate_embeddings(texts)  ── loops over the 30 texts
+              └─► _embed_one("Never trust an atom...", input_type="passage")
+3. our file:  client.embeddings.create(model="nvidia/nemotron-3.5-embed-8b", input=[the text], ...)
+              └─► HTTPS request to NVIDIA  ──►  NVIDIA runs the model  ──►  returns 4096 numbers
+4. our file:  convert the list to a numpy float32 array of shape (4096,)
+5. LanceDB:   writes the row:  jokes = "Never trust an atom...",  vector = [4096 numbers]
+```
+
+And one search, `table_jokes.search("kemi")`:
+
+```
+1. LanceDB:   compute_query_embeddings("kemi")
+2. our file:  _embed_one("kemi", input_type="query")  ──►  NVIDIA  ──►  4096 numbers
+3. LanceDB:   compares that array with the vector of every row, returns the nearest rows
+```
+
+**"passage" vs "query" in one line.** NVIDIA's model wants to know whether it is embedding a **stored document** (`"passage"`) or a **question** (`"query"`), because a question and its answer look very different. When I embedded the word "hello" both ways, the two vectors were **not identical** (cosine similarity about 0.75), which shows the flag really changes the result. So store with `"passage"`, search with `"query"`, and the model lines them up.
+
+#### D. Reference: the line table
 
 | Lines | Code | Meaning |
 | --- | --- | --- |
@@ -360,6 +493,21 @@ Read the docstrings in the file: it has a module docstring that draws the flow.
 
 **Why this file is a good template.** To add *any* embedding service to LanceDB you need only: a class that extends `TextEmbeddingFunction`, the `@register("name")` decorator, `ndims()`, and one method that returns a list of vectors. Everything else in LanceDB then works with it.
 
+#### E. Questions beginners ask
+
+| Question | Answer |
+| --- | --- |
+| Is this file the embedding model? | **No.** The model runs on NVIDIA's servers. This file is a small wrapper that calls it and hands the result to LanceDB |
+| Why 4096 numbers? | The model was designed to output 4096. We just declare it in `dimensions` so LanceDB knows. More numbers = more detail but more storage (see the table in A) |
+| Can I look at the numbers and understand them? | No. A single number has no meaning you can name. Only the distance between two vectors is meaningful |
+| Why do I need a custom class at all? | LanceDB has built-in embedders for some providers, but not for this NVIDIA model. The class is the adapter that fills the gap |
+| Why does the notebook import the class but never use its name? | The import runs `@register(...)`, which adds `"nvidia-nemotron"` to LanceDB's directory. Without the import, `get_registry().get("nvidia-nemotron")` fails |
+| Does the table store the original text too? | Yes. A row has the text column **and** the vector column. The vector is only used to find the row; you still read the text |
+| Why does `add` take a while? | One API call per text (see `_embed_one`). 30 jokes = 30 calls |
+| Why must I search with the same model I stored with? | Each model has its own "number language". Comparing numbers from two different models is meaningless, like comparing kilometres with Fahrenheit |
+| What does LanceDB do with `float32`? | It stores each number as 4 bytes. That is why we convert the API's Python list to a `float32` array |
+| What if I change `dimensions`? | Only the declaration changes, not what NVIDIA returns. If they disagree, the table cannot store the vectors. Keep it equal to the model's real output length (4096) |
+
 ### 4.4 The two JSON files
 
 | File | Shape | Used by |
@@ -368,6 +516,247 @@ Read the docstrings in the file: it has a module docstring that draws the flow.
 | [jokes.json](jokes.json) | An **object** with one key: `{"jokes": ["...", "..."]}` (30 strings) | Both notebooks. `pandas` turns it into one column called `jokes` |
 
 Why the shapes differ: a list of dicts maps directly to table rows (`create_table(data=...)` accepts it). `jokes.json` has one key holding a list, so pandas makes a one-column DataFrame, and the column name comes from the key.
+
+### 4.5 Deep dive: understanding `nvidia_nemotron.py`
+
+This is the only Python file of the lecture. It is short (about 120 lines, most of them comments), but it uses four ideas that are new to many beginners: a **class that extends another class**, a **decorator**, **import-time code**, and a **contract** with LanceDB. This section walks through them one at a time. Keep [custom_embeddings/nvidia_nemotron.py](custom_embeddings/nvidia_nemotron.py) open next to it.
+
+#### Step 0: the problem it solves
+
+| LanceDB says... | NVIDIA says... |
+| --- | --- |
+| "I know Cohere, sentence-transformers, Gemini... but not NVIDIA Nemotron." | "Call me like you would call OpenAI: `client.embeddings.create(...)`." |
+
+The file is a **travel adapter** between the two:
+
+```
+ LanceDB plug                     the adapter                     NVIDIA socket
+ (table.add / table.search)  ──►  NvidiaNemotronEmbedding  ──►   integrate.api.nvidia.com/v1
+ "give me vectors for these       translates the request          returns 4096 numbers per text
+  texts"                          and the answer
+```
+
+> **Data engineer view:** this is a **connector / adapter class**. Same pattern as a custom Airflow operator, a Spark data source or a dbt adapter: the framework defines an interface, you implement it for a new system, then you register it so the framework can find it.
+
+#### Step 1: the five blocks of the file
+
+Read the file as five blocks, top to bottom. This is also the order they run in when the file is imported.
+
+| Block | Lines | What it is | Runs when |
+| --- | --- | --- | --- |
+| 1. Imports | 42 to 46 | Tools the file needs | at import |
+| 2. `load_dotenv()` | 49 | Puts the keys from `.env` into the environment | at import |
+| 3. `client = OpenAI(...)` | 53 to 58 | One shared connection to the NVIDIA API | at import |
+| 4. Decorator + class header | 63 to 64 | Registers the class in LanceDB under a name | at import |
+| 5. Settings and methods | 74 to 120 | The real work: turn text into vectors | only when LanceDB **calls** them |
+
+Blocks 1 to 4 run **once, the moment the notebook does `from custom_embeddings.nvidia_nemotron import ...`**. Block 5 only *defines* the methods. They run later, on `table.add(...)` and `table.search(...)`.
+
+##### Block 1 and 2: imports and `.env`
+
+```python
+from openai import OpenAI
+from lancedb.embeddings import TextEmbeddingFunction, get_registry
+import numpy as np
+load_dotenv()
+```
+
+| Import | Why it is here |
+| --- | --- |
+| `OpenAI` | NVIDIA's API copies the OpenAI format, so we reuse OpenAI's Python client. Same trick as `model.py` in lectures 01 to 08 |
+| `TextEmbeddingFunction` | LanceDB's **base class** for text embedders. We build on top of it |
+| `get_registry` | LanceDB's catalogue of embedders, used by the decorator |
+| `numpy` | The vectors are stored as arrays of `float32` |
+| `load_dotenv()` | Reads `.env`, so `NVIDIA_API=...` becomes available through `os.getenv("NVIDIA_API")` |
+
+##### Block 3: the client
+
+```python
+client = OpenAI(
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key=os.getenv("NVIDIA_API"),
+    max_retries=3,
+    timeout=60.0,
+)
+```
+
+| Argument | Meaning |
+| --- | --- |
+| `base_url` | "Send my OpenAI-style requests to NVIDIA's server instead of OpenAI's" |
+| `api_key` | Your key, read from `.env`. Never type a key into code |
+| `max_retries=3` | If a request fails for a temporary reason (network hiccup, rate limit), try again up to 3 times |
+| `timeout=60.0` | Give up on one request after 60 seconds |
+
+It is created **once, at the top level**, and shared by every call. Opening a connection once and reusing it is cheaper than opening one per text. It is outside the class, so all instances use the same one.
+
+##### Block 4: the decorator (how LanceDB finds your class)
+
+```python
+@get_registry().register("nvidia-nemotron")
+class NvidiaNemotronEmbedding(TextEmbeddingFunction):
+```
+
+Two different things happen in these two lines:
+
+| Part | Plain English |
+| --- | --- |
+| `class NvidiaNemotronEmbedding(TextEmbeddingFunction)` | "Make a new class that **inherits** from `TextEmbeddingFunction`." We get all of LanceDB's text-embedder machinery for free, and only fill in the parts that are specific to NVIDIA |
+| `@get_registry().register("nvidia-nemotron")` | "Write this class into LanceDB's phone book under the name `nvidia-nemotron`." A **decorator** is a function that wraps the thing under it. Here it registers the class and returns it |
+
+That is why the notebook can later write `get_registry().get("nvidia-nemotron").create()`: it asks the phone book for the name, gets the class, and `.create()` builds an object from it. **If you never import this file, the name is never registered, and `get("nvidia-nemotron")` fails.** That is the reason the notebook imports a class it never uses by name.
+
+> **Data engineer view:** `register("name")` is like registering a plugin in an entry-point table, or adding a connector type to a config. The string `"nvidia-nemotron"` is the key you use later in config or code.
+
+##### Block 5a: the settings
+
+```python
+model: str = "nvidia/nemotron-3.5-embed-8b"
+dimensions: int = 4096
+```
+
+These are **fields** of the class (the base class is built on Pydantic, like the models in lecture 03). They are settings with defaults:
+
+| Field | Meaning | Careful |
+| --- | --- | --- |
+| `model` | Which NVIDIA model to call | It must be a model name your key can use. A wrong name gives an API error (see the error table below) |
+| `dimensions` | How many numbers each vector has | **You** declare it, the code does not check it. If it differs from what the API really returns, the table will refuse the data |
+
+##### Block 5b: the five methods
+
+| Method | Who calls it | Job | In one line |
+| --- | --- | --- | --- |
+| `ndims()` | LanceDB, once, when the table schema is built | Says how long vectors are | `return self.dimensions` |
+| `_embed_one(text, input_type)` | our own methods | **The only method that talks to the network.** One text in, one vector out | the workhorse |
+| `generate_embeddings(texts)` | `compute_source_embeddings` | Loop over the texts, embed each as `"passage"` | required by the base class |
+| `compute_source_embeddings(texts)` | LanceDB on `table.add(...)` | Embed the **documents** you store | calls `generate_embeddings` |
+| `compute_query_embeddings(query)` | LanceDB on `table.search("...")` | Embed the **question** | same, with `"query"` |
+
+The leading underscore in `_embed_one` is a Python habit: "this is an internal helper, not meant to be called from outside the class".
+
+**Look closely at `_embed_one`, the heart of the file:**
+
+```python
+response = client.embeddings.create(
+    model=self.model,                       # which NVIDIA model
+    input=[text],                           # a list with ONE text
+    extra_body={"input_type": input_type},  # "passage" or "query"
+)
+vector = np.asarray(response.data[0].embedding, dtype=np.float32)
+return vector
+```
+
+| Line | What it does |
+| --- | --- |
+| `self.model` | The value of the `model` field above |
+| `input=[text]` | The API wants a **list** of texts. We send a list of one |
+| `extra_body={...}` | The OpenAI client only knows standard options. `input_type` is a NVIDIA extra, so we slip it into the request body through `extra_body` |
+| `response.data[0].embedding` | The answer is a list with one item per input text. We sent one text, so we take item `0`. `.embedding` is a plain Python list of 4096 floats |
+| `np.asarray(..., dtype=np.float32)` | Convert to a numpy array of 32-bit floats. LanceDB stores `float32` columns |
+
+#### Step 2: who calls what (follow one `table.add` and one `table.search`)
+
+```
+table_jokes.add(df)                                 ← in the notebook
+   │  LanceDB sees: column "jokes" is a SourceField, column "vector" is a VectorField
+   ▼
+compute_source_embeddings(["joke 1", "joke 2", ...])
+   ▼
+generate_embeddings(texts)                          ← sanitize_input() cleans the list first
+   ▼
+[ _embed_one("joke 1", "passage"), _embed_one("joke 2", "passage"), ... ]   ← 1 API call per joke
+   ▼
+list of numpy arrays, each with 4096 float32  ──►  stored in the "vector" column
+
+
+table_jokes.search("kemi")                          ← in the notebook
+   ▼
+compute_query_embeddings("kemi")                    ← sanitize_input() turns "kemi" into ["kemi"]
+   ▼
+[ _embed_one("kemi", "query") ]                     ← 1 API call
+   ▼
+one vector with 4096 numbers  ──►  LanceDB compares it with every stored vector  ──►  nearest rows
+```
+
+For the 30 jokes that is **30 API calls on `add`** and **1 on each `search`**.
+
+#### Step 3: a worked example with shapes
+
+| Step | What you write | What you get |
+| --- | --- | --- |
+| Texts in | `["Never trust an atom", "ETL stands for..."]` | a list of 2 strings |
+| `_embed_one` for the first | `_embed_one("Never trust an atom", "passage")` | an array of shape `(4096,)`, dtype `float32` |
+| `generate_embeddings` | `generate_embeddings(texts)` | a list of 2 arrays, each `(4096,)` |
+| Stored in the table | the `vector` column | type `fixed_size_list<item: float>[4096]` |
+| Query in | `compute_query_embeddings("kemi")` | a list of 1 array `(4096,)` |
+
+**Why the lengths must match:** the `vector` column was created with room for exactly `ndims()` = 4096 numbers. A vector of any other length cannot be stored, and the query vector has to have the same length as the stored ones to be compared.
+
+#### Step 4: try it yourself in a notebook cell
+
+Run this in a new cell of `lancedb_embeddings.ipynb`. It costs **one** API call and does not touch any table:
+
+```python
+from custom_embeddings.nvidia_nemotron import NvidiaNemotronEmbedding
+from lancedb.embeddings import get_registry
+
+embedder = get_registry().get("nvidia-nemotron").create()
+
+print(embedder.ndims())                                   # 4096
+vectors = embedder.compute_query_embeddings("hello")      # a list with one array
+print(len(vectors), vectors[0].shape, vectors[0].dtype)   # 1 (4096,) float32
+```
+
+When I tested this class against the real NVIDIA API, the table column was `[4096]` and search worked, so the numbers above are what you should expect. Then try `compute_source_embeddings("hello")` and compare it with the query vector for the same word. They are **not identical**, because of `"passage"` vs `"query"`.
+
+#### Step 5: why two input types again
+
+| | `"passage"` | `"query"` |
+| --- | --- | --- |
+| Used for | the documents you store | the question a user types |
+| Method | `compute_source_embeddings` | `compute_query_embeddings` |
+| Happens | on `table.add` | on `table.search` |
+
+A question ("jokes about chemistry?") and its answer ("Never trust an atom") do not look alike. A retrieval model is trained to put a question near its matching documents, but it needs to know which side it is looking at.
+
+#### Step 6: things that go wrong
+
+| What you see | Likely cause | Fix |
+| --- | --- | --- |
+| An error right when you run the import cell, mentioning the `api_key` | `NVIDIA_API` is missing, so `OpenAI(api_key=None)` is built at import | Put `NVIDIA_API=...` in `.env` and restart the kernel |
+| `ModuleNotFoundError: custom_embeddings` | The notebook is not running from `09_lancedb/` | Open the notebook from this folder |
+| `ModuleNotFoundError` for `lancedb`, `openai` or `dotenv` | Wrong kernel | Select the project's `.venv` |
+| `401` / authentication error | Wrong or expired key | Create a new key and update `.env` |
+| `404` / model not found | `model` is not a model your key can call | Check the model name on build.nvidia.com |
+| A vector-length / schema error on `add` | `dimensions` (4096) differs from what the model returns | Set `dimensions` to the real length |
+| `get("nvidia-nemotron")` fails | The file was never imported, so the name is not registered | Import the class first |
+| Very slow `add` | One API call per text | Fine for 30 jokes. For thousands, batch the texts into one call |
+| Timeouts or rate-limit errors | Too many calls, or slow network | `max_retries=3` already retries. Try fewer rows at a time |
+
+#### Step 7: reuse it as a template for another provider
+
+To add a different embedding service to LanceDB, copy the file and change only these parts:
+
+| Part | Change it to |
+| --- | --- |
+| `client = ...` | The new provider's client and key |
+| `register("...")` | A new name, for example `"my-embedder"` |
+| `class ...` | A new class name |
+| `model`, `dimensions` | The new model and its real vector length |
+| `_embed_one` | The new provider's call. Return a `float32` numpy array |
+| `compute_query_embeddings` | Keep the `"query"` idea only if the provider has one |
+
+Everything else (`ndims`, the loop in `generate_embeddings`, the two `compute_*` methods) stays the same.
+
+#### Check yourself
+
+| Question | Answer |
+| --- | --- |
+| Which lines run when the file is **imported**? | `load_dotenv()`, `client = OpenAI(...)`, and the decorator that registers the class |
+| Which method is the only one that uses the network? | `_embed_one` |
+| How many API calls does `table.add` make for 30 jokes? | 30 (one per text) |
+| Why does the notebook import `NvidiaNemotronEmbedding` without using it by name? | The import runs the decorator, which registers `"nvidia-nemotron"` |
+| What happens if `dimensions` is wrong? | The table cannot store the vectors, or queries cannot be compared |
+| Why `float32`? | LanceDB stores `float32` vectors |
 
 ---
 
@@ -477,6 +866,10 @@ The saved outputs in the notebooks come from the lecturer's machine (paths like 
 | **Passage / query** | The two `input_type`s of a retrieval embedding model: a stored document and a search question |
 | **RAG** | Retrieval-Augmented Generation: find relevant text first, then give it to the model. Built on this lecture |
 | **Hugging Face** | A website that hosts open models. `sentence-transformers` downloads from it |
+| **Decorator** | A line starting with `@` above a function or class. It wraps it. `@get_registry().register("nvidia-nemotron")` adds our class to LanceDB's registry |
+| **Inheritance** | `class A(B)`: A gets everything B has and only adds or changes parts. Here `NvidiaNemotronEmbedding(TextEmbeddingFunction)` |
+| **Adapter / connector class** | A class that translates between a framework's interface and an outside service. `nvidia_nemotron.py` is one |
+| **`input_type`** | NVIDIA's extra request field: `"passage"` for stored documents, `"query"` for search questions |
 | **pyarrow** | The columnar table format returned by `table.head()` |
 
 ---

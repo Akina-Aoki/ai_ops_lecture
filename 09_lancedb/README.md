@@ -117,7 +117,7 @@ custom_embeddings/nvidia_nemotron.py ────┘   imported in the "Custom e
 ## Setup 
 
 ```bash
-uv add lancedb sentence-transformers cohere google-generativeai
+uv add lancedb sentence-transformers cohere google-generativeai IProgress
 ```
 
 > The original line said `sentence-transformer` (no `s` at the end). The package is called `sentence-transformers`. `cohere` is the library behind the Cohere embeddings. They are already added to `pyproject.toml` (run `uv sync` on a fresh clone to install them). The `openai` and `python-dotenv` packages come with `pydantic-ai`.
