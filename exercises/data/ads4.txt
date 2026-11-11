@@ -1,0 +1,69 @@
+Data Engineer
+Mentimeter AB (publ)
+Dataingenjör
+Kommun: Stockholm
+Kort arbetsbeskrivning
+Omfattning: Heltid
+Varaktighet: Tills vidare
+Anställningsform: Tillsvidareanställning (inkl. eventuell provanställning)
+Placering: Arbetet är ett hybridjobb
+
+
+Om jobbet
+Modern data platforms are built on events - well-defined, trustworthy signals that describe how users interact with products and systems over time. As a Data Engineer you will help build and improve the data platform that powers analytics, growth, personalization and decision-making across the company.
+
+This role is part of the Data Platform team, where we design and maintain the core data infrastructure that serves Product, Marketing, Growth, and Analytics. You will focus on the systems and infrastructure that supports transforming batch and streaming data into high-quality datasets that downstream systems - from warehouses to activation tools - can rely on.
+
+We are currently in the early stages of building out a new event-driven architecture, and this role will be part of shaping it. That means owning parts of the streaming infrastructure, contributing to foundational decisions about how events are structured and evolved, and having real influence over how data flows across the company for years to come.
+
+This is a hybrid/onsite role located in Stockholm, our guideline is to spend 3 days a week at our office.
+
+What you’ll do
+
+Design and operate data infrastructure (streaming and batch) and the systems that move data reliably at scale.
+Contribute to how events are defined, structured, and evolved across the platform.
+Ensure data quality, consistency, and observability across event pipelines.
+Ensure GDPR and PII compliance across data flows at scale.
+Contribute to data and architecture best practices that may span across the whole organisation.
+Who you are
+
+A few years of experience as a Data Engineer or data-heavy backend engineer.
+Solid programming and data skills (e.g. SQL, Python, and/or JVM-based languages).
+Experience building and maintaining data pipelines in a modern cloud data stack.
+Experience managing infrastructure as code (e.g. Terraform or similar).
+A good understanding of data quality, observability, and reliability.
+Clear written communication skills in English and comfort working cross-functionally.
+Experience with streaming systems or near real-time data infrastructure (e.g. Kafka, Flink, or similar).
+ 
+
+📍 Location: 
+
+This is a hybrid/on-site role at Mentimeter HQ in Stockholm, where we expect you to be in the office at least 3 days/week.
+
+Please note that we do not offer relocation sponsorship for the position.  
+
+Not Required:
+
+You don’t have to know Swedish (daily work is carried out in English and the Mentimeter team currently boasts over 50 nationalities!)
+
+
+Kvalifikationer
+Utbildning
+Meriterande
+Eftergymnasial utbildning två år eller längre
+Språk
+Meriterande
+Engelska
+
+
+Övrig information
+Lön
+Lönetyp: Fast månads- vecko- eller timlön
+Var ligger arbetsplatsen?
+Mentimeter AB
+Tulegatan 11
+11353 STOCKHOLM
+Stockholms Kommun
+Arbetsgivare
+Mentimeter AB (publ)
+https://www.mentimeter.com/jobs

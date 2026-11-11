@@ -174,3 +174,11 @@ cython_debug/
 # LanceDB data created by 09_lancedb notebooks
 09_lancedb/vector_database/
 09_lancedb/knowledge_base/
+
+
+# NotebookLM assets
+assets/*.m4a
+assets/*.mp4
+
+# exercises
+summaries/

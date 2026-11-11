@@ -3,10 +3,30 @@
 - [IBM Vector Db Video](https://www.youtube.com/watch?v=gl1r1XV0SLw)
 - [Video: Part 1 | LanceDB Basics](https://youtu.be/pQMEhbrXT4A)
 - [Video: Part 2 | LanceDM Custom Embeddings](https://youtu.be/GDJuPBRn7aM)
+- [Video: NotebookLM | Vector Search and LancdeDB Embeddings]()
+
 
 Until now the agents only knew what the model learned in training. **LanceDB** is a database where you can store your **own text** as lists of numbers (**vectors**) and then ask "which stored texts are closest in **meaning** to my question?". This is the building block for **RAG** (next lectures): find the right text first, then give it to the model.
 
 ![Lecture 09 architecture: two JSON files are read by two notebooks, which use embedding models (Cohere, a local model, NVIDIA through a custom class) and store vectors in two LanceDB folders](architecture_9.png)
+
+## Listen and watch: podcast and video made with NotebookLM
+
+These two files were created with Google **NotebookLM** from this folder's study guide, README, code and notebooks. Use them **together with the code**: play them while you have the notebooks open, and pause when you want to try a cell yourself. They are a study aid, so if they disagree with the code or the [STUDY_GUIDE.md](STUDY_GUIDE.md), trust the code.
+
+| | File | Size | Best for |
+| --- | --- | --- | --- |
+| **Podcast** (audio) | [09_Vector_Search_and_Embeddings_in_LanceDB.m4a](assets/09_Vector_Search_and_Embeddings_in_LanceDB.m4a) | about 30 MB | Learning the ideas away from the screen: embeddings, vector search, hybrid search, the custom NVIDIA embedder |
+| **Video overview** | [LanceDB_and_Vector_Search.mp4](assets/LanceDB_and_Vector_Search.mp4) | about 42 MB | Following the lesson with visuals while you look at your own code |
+
+**Suggested way to use them**
+
+1. Read the picture above and section 1 first, so you know the map.
+2. Watch the **video** with [lancedb_basics.ipynb](lancedb_basics.ipynb) open. Pause at each cell.
+3. Listen to the **podcast** later (walking, commuting) to repeat the ideas.
+4. Then read [STUDY_GUIDE.md](STUDY_GUIDE.md), especially section 4.3 on `nvidia_nemotron.py`, and answer the "check yourself" questions.
+
+> The links open the files from this folder. On GitHub, large audio and video files are shown as a download or a player page rather than playing inside the README.
 
 ## 1. What the picture says
 
@@ -26,10 +46,10 @@ Until now the agents only knew what the model learned in training. **LanceDB** i
 
 | Word | Meaning | In this lecture |
 | --- | --- | --- |
-| **Vector** | A list of numbers that stands for the meaning of a text | `[0.12, 0.85, 0.33]` (3 numbers, hand-made) or 1024 numbers (real model) |
+| **Vector** | A list of numbers that stands for the meaning of a text | `[0.12, 0.85, 0.33]` (3 numbers, hand-made) or 384 numbers (a real model) |
 | **Embedding** | The act of turning a text into a vector | `table.add(...)` and `table.search("text")` do it for you |
 | **Embedding model** | The AI model that does the embedding | Cohere, `intfloat/multilingual-e5-small`, NVIDIA Nemotron |
-| **Dimensions** | How many numbers one vector has. Fixed per model | 3, 384, 1024, 4096 |
+| **Dimensions** | How many numbers one vector has. Fixed per model | 3, 384, 768, 4096 |
 | **Table** | Rows with columns, like SQL. Here: a text column and a vector column | `animals_text`, `jokes` |
 | **Distance** | How far apart two vectors are. **Smaller = more similar** | the `_distance` column in search results |
 | **Vector search** | Find the rows whose vectors are nearest to the query's vector | `table.search(...)` |
@@ -43,7 +63,7 @@ Until now the agents only knew what the model learned in training. **LanceDB** i
 | --- | --- | --- | --- | --- |
 | Where | the JSON file | Cohere's servers | your computer | NVIDIA's servers |
 | Model | none | `embed-multilingual-light-v3.0` | `intfloat/multilingual-e5-small` | `nvidia/nemotron-3.5-embed-8b` |
-| Vector size | 3 | 1024 | 384 | 4096 |
+| Vector size | 3 | 384 (checked in a real run) | 384 | 4096 |
 | Key in `.env` | none | `COHERE_API_KEY` | none | `NVIDIA_API` |
 | Cost | free | API quota | free (downloads the model once) | API quota |
 | Used in | basics, steps 2-4 | basics, steps 5-8 | embeddings, steps 2-3 | embeddings, steps 4-5 |
@@ -80,7 +100,7 @@ custom_embeddings/nvidia_nemotron.py ────┘   imported in the "Custom e
 | 3 | Empty table | A `LanceModel` describes columns only. Create, list and drop the demo table `jokes` |
 | 4 | Vector search | `search([0.5, 0.2, 0.9]).limit(3)`: panda, cheetah, elephant are closest |
 | 5 | Embeddings API | A schema with `SourceField` (text in) and `VectorField` (vector out). Table `jokes` |
-| 6 | Add jokes | `add(df)`: LanceDB sends each joke to Cohere and stores the 1024 numbers |
+| 6 | Add jokes | `add(df)`: LanceDB sends each joke to Cohere and stores the 384 numbers |
 | 7 | Text search | `search("give me chemistry related jokes")`: the query is embedded too, then nearest rows win |
 | 8 | Hybrid search | `create_fts_index` then `query_type="hybrid"` and `.rerank(RRFReranker())` |
 
@@ -112,12 +132,14 @@ custom_embeddings/nvidia_nemotron.py ────┘   imported in the "Custom e
 | [animals_text_embeddings.json](animals_text_embeddings.json) | 6 rows with tiny vectors | What a "row with a vector" looks like |
 | [jokes.json](jokes.json) | 30 jokes | The data we search |
 | [STUDY_GUIDE.md](STUDY_GUIDE.md) | Study guide | Everything explained for a beginner |
+| [PODCAST_SCRIPT.md](PODCAST_SCRIPT.md) | A teacher-style podcast script (text) | The lecture explained as a spoken story |
+| [assets/](assets/) | `architecture_9.png`, the NotebookLM podcast (`.m4a`) and video (`.mp4`) | The picture, and audio and video you can study with |
 | `vector_database/`, `knowledge_base/` | Databases (appear after you run the notebooks) | Each table is a folder `<name>.lance/` with `_transactions`, `_versions` and `data` |
 
 ## Setup 
 
 ```bash
-uv add lancedb sentence-transformers cohere google-generativeai IProgress
+uv add lancedb sentence-transformers cohere openai google-generativeai IProgress
 ```
 
 > The original line said `sentence-transformer` (no `s` at the end). The package is called `sentence-transformers`. `cohere` is the library behind the Cohere embeddings. They are already added to `pyproject.toml` (run `uv sync` on a fresh clone to install them). The `openai` and `python-dotenv` packages come with `pydantic-ai`.

@@ -48,7 +48,7 @@ There are **no agents** in this lecture. No PydanticAI, no FastAPI. It is only n
 animals_text_embeddings.json ─┐
 jokes.json ───────────────────┼──► lancedb_basics.ipynb ──► vector_database/     (folder, made on first run)
                               │           │
-                              │           └──► Cohere API   (turns jokes into 1024 numbers)
+                              │           └──► Cohere API   (turns jokes into 384 numbers)
                               │
 jokes.json ───────────────────┴──► lancedb_embeddings.ipynb ──► knowledge_base/  (folder, made on first run)
                                           │
@@ -86,7 +86,7 @@ ADD (writing)
   df of jokes ─► table.add(df) ─► [LanceDB sees joke is a SourceField]
                                          │  calls the embedding model: "Parallel lines have..." ─► [0.013, 0.016, -0.028, ...]
                                          ▼
-                              row stored:  joke = "Parallel lines..."   vector = [1024 numbers]
+                              row stored:  joke = "Parallel lines..."   vector = [384 numbers]
 
 SEARCH (reading)
   "give me jokes on C#" ─► table.search("give me jokes on C#")
@@ -100,7 +100,7 @@ Two rules fall out of this picture:
 | Rule | Why |
 | --- | --- |
 | **Use the same model for storing and searching** | Vectors from different models live in different "number worlds". Comparing them is meaningless |
-| **Vector length must match** | A table built for 1024 numbers cannot take a 384-number vector |
+| **Vector length must match** | A table built for 384 numbers cannot take a 4096-number vector |
 
 ### Picture D: vector search with 3 numbers (you can do this on paper)
 
@@ -151,7 +151,7 @@ An **embedding model** reads a text and outputs a fixed-length list of numbers. 
 | Model | Vector length | Runs where | Notes |
 | --- | --- | --- | --- |
 | Hand-made (animals JSON) | 3 | nowhere | Just to learn |
-| Cohere `embed-multilingual-light-v3.0` | 1024 | Cohere's servers | Paid API, key `COHERE_API_KEY` |
+| Cohere `embed-multilingual-light-v3.0` | 384 (seen in a real run; older LanceDB versions may say 1024) | Cohere's servers | Paid API, key `COHERE_API_KEY` |
 | `intfloat/multilingual-e5-small` | 384 | your CPU | Free, downloads once |
 | NVIDIA `nemotron-3.5-embed-8b` | 4096 (set in the class) | NVIDIA's servers | Key `NVIDIA_API`, our custom class |
 
@@ -305,8 +305,8 @@ The notebook has comments in every code cell, plus a short map at the top. Here 
 | Schema | `JokeModel` with `SourceField` and `VectorField` | Section 3.4 |
 | Create `jokes` | `db.create_table("jokes", schema=JokeModel, exist_ok=True)` | An empty table that knows how to embed |
 | Load jokes | `pd.DataFrame(jokes_data).rename({"jokes": "joke"}, axis=1)` | One column `jokes` from the JSON, renamed to `joke` to match the schema |
-| Fill | `table_jokes.add(df_jokes)` | LanceDB embeds 30 jokes and stores 1024 numbers per joke. `version=2` |
-| Check | `table_jokes.head(2)` | Shows `vector: fixed_size_list<item: float>[1024]` |
+| Fill | `table_jokes.add(df_jokes)` | LanceDB embeds 30 jokes and stores 384 numbers per joke. `version=2` |
+| Check | `table_jokes.head(2)` | Shows `vector: fixed_size_list<item: float>[384]` |
 | Text search | `search("data engineering jokes").limit(8)` | Four searches: data engineering, C#, chemistry, nature |
 | FTS index | `table_jokes.create_fts_index("joke", replace=True)` | Builds a keyword index on the text column |
 | Hybrid | `search(..., query_type="hybrid", vector_column_name="vector", fts_columns="joke").rerank(RRFReranker()).limit(8)` | Section 3.5 |
@@ -402,7 +402,7 @@ That is all "search by meaning" is: **turn the question into numbers too, then r
 | --- | --- | --- | --- | --- |
 | Hand-made animals | 3 | 12 B | tiny | 12 MB |
 | Local e5-small | 384 | 1,536 B | ~46 KB | ~1.5 GB |
-| Cohere light | 384 or 1024 (depends on your LanceDB version) | 1.5 to 4 KB | ~46 to 123 KB | ~1.5 to 4 GB |
+| Cohere light | 384 (seen in a real run) | 1,536 B | ~46 KB | ~1.5 GB |
 | NVIDIA Nemotron (this file) | 4096 | 16,384 B (16 KB) | ~480 KB | **~16 GB** |
 
 Bigger vectors can capture finer detail, but cost more to store, move and compare. That is a real data-engineering trade-off.
@@ -827,6 +827,10 @@ The saved outputs in the notebooks come from the lecturer's machine (paths like 
 6. **Vector search never says "no match".** It returns the *nearest* k rows, however far. For a real app, look at `_distance` and decide a cut-off.
 7. **Old outputs.** The saved outputs come from the lecturer's Mac, and the NVIDIA table cells were changed after they were saved. Re-run to refresh them.
 
+8. **Pass a LIST to `generate_embeddings`, not a string.** `model.generate_embeddings("hello")` returned shape `(5, 768)` in a real run: five vectors, one per **letter** of "hello", because a string is a sequence of characters. `model.generate_embeddings(["hello"])` gives `(1, 768)`: one vector for the word. (Gemini's vector length was 768 here.)
+9. **Duplicate rows from re-running `add`.** In a real run the `animals_text` table ended at `AddResult(version=5)` with the panda row **three times**, because the add cell was run several times. A vector search then returns the same panda three times (distance 0.0354 each). Use `mode="overwrite"` or drop the table before re-running `add`.
+10. **`create_fts_index` is deprecated** (warning: use `create_index()` with `config=FTS()`). It still works.
+
 ### What I tested
 
 | Checked | Result |
@@ -845,7 +849,7 @@ The saved outputs in the notebooks come from the lecturer's machine (paths like 
 | **Vector** | A list of numbers. Here: the meaning of a text |
 | **Embedding** | A vector made from a text (also: the act of making it) |
 | **Embedding model** | The AI model that turns text into a vector |
-| **Dimensions** | The length of a vector. Fixed per model (3, 384, 1024, 4096 here) |
+| **Dimensions** | The length of a vector. Fixed per model (3, 384, 768, 4096 here) |
 | **Vector database** | A database that can find the rows whose vectors are nearest to a query vector |
 | **LanceDB** | An open-source, embedded vector database that stores data in Lance files in a folder |
 | **Embedded database** | Runs inside your program. No server. Like SQLite or DuckDB |
