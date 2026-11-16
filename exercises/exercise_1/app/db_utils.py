@@ -16,9 +16,10 @@ import duckdb
 # Path(__file__).parent = this file's folder (app/). We keep the .duckdb
 # file in a "data" subfolder next to the code, no matter where you run from.
 DATA_PATH = Path(__file__).parent / "data"
-DATA_PATH.mkdir(exist_ok = True)
+DATA_PATH.mkdir(exist_ok=True)
 
-def query_duckdb(sql_code: str, parameters = None):
+
+def query_duckdb(sql_code: str, parameters=None):
     """Run one SQL statement against data/restaurants.duckdb.
 
     Args:
@@ -32,12 +33,11 @@ def query_duckdb(sql_code: str, parameters = None):
         A pandas DataFrame for read queries (SELECT/FROM/DESC/PRAGMA),
         or None for statements that change data (CREATE, INSERT, ...).
     """
-
-    # `with` opens the connection and guarantees it closes, even on error
+    # `with` opens the connection and guarantees it closes, even on error.
     with duckdb.connect(DATA_PATH / "restaurants.duckdb") as conn:
         cursor = conn.execute(sql_code, parameters)
 
-        # Decide whether this statement returns rows by looking at how it starts
+        # Decide whether this statement returns rows by looking at how it starts.
         lower = sql_code.strip().lower()
         if lower.startswith(("select", "from", "desc", "pragma")):
             return cursor.df()

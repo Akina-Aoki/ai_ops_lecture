@@ -51,43 +51,45 @@ model = OpenAIChatModel(
 # an invalid reply (e.g. rating out of range) gets sent back for a retry.
 restaurant_agent = Agent(
     model,
-    output_type = Restaurant,
-    instructions = (
-                "You suggest one restaurant based on a free-text request describing "
+    output_type=Restaurant,
+    instructions=(
+        "You suggest one restaurant based on a free-text request describing "
         "a location and, optionally, a type of food the user wants. "
         "Fill in every field. It is fine to invent a plausible restaurant "
         "that may not actually exist."
     ),
 )
 
+
 @app.get("/restaurants")
 async def read_restaurants():
     """Return all restaurants in the database as a list of JSON objects."""
     # "FROM restaurants;" is DuckDB shorthand for "SELECT * FROM restaurants;".
     restaurants = query_duckdb("FROM restaurants;")
+    # orient="records" turns the DataFrame into [{"name": ..., ...}, ...],
+    # which FastAPI converts to JSON automatically.
+    return restaurants.to_dict(orient="records")
 
 
 @app.post("/restaurant")
-async def create_restaurant(query:Prompt):
+async def create_restaurant(query: Prompt):
     """Turn a free-text prompt into a Restaurant using AI, save it, return it.
 
     `query: Prompt` makes FastAPI validate the body as {"prompt": "..."}
     before this function runs - a wrong shape gets an automatic 422.
     """
-    # await: the LLM call is slow; while we wait, the server can handle other requests.
-
+    # await: the LLM call is slow; while we wait, the server can handle
+    # other requests.
     result = await restaurant_agent.run(query.prompt, model_settings={"timeout": 120})
     # result.output is now a real Restaurant object, not loose text.
     restaurant = result.output
 
-
     # Values passed separately as `parameters`, with `?` placeholders in the
     # SQL - never build the SQL string by hand with f-strings (SQL injection).
     # Order here must match the column order from setup_db.py.
-
     query_duckdb(
         "INSERT INTO restaurants VALUES (?,?,?,?,?,?,?)",
-        parameters = [
+        parameters=[
             restaurant.name,
             restaurant.cuisine,
             restaurant.price_level,

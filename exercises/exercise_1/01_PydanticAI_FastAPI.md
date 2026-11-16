@@ -17,14 +17,24 @@ Make a PydanticAI model that can take an input of a location and then it should 
 It's okay if your model is making up a restaurant that doesn't exist
 
 ## 1. FastAPI to serve PydanticAI
+- **In app folder**
 
 Now make a fastapi with a post endpoint in natural language to prompt for a location and what type of food. Based on these it should generate a restaurant and store it in a duckdb database.
 
 Also implement a get endpoint for showing all restaurants in the database. Implement a simple frontend in for example streamlit to consume this API.
 
+How to run 
+```
+cd exercises/exercise_1/app
+python setup_db.py
+uvicorn restaurant_api:app --reload
+```
+
 ## 2. A pedagogical programming bot
 
 Create a chatbot that is specialized in helping out with programming tasks. It should answer shortly, so not spoonfeeding with long answers, and it should be socratic, that is always ask follow up questions rather than giving the answer.
+
+- **In Chatbot folder**
 
 
 ## Theory questions

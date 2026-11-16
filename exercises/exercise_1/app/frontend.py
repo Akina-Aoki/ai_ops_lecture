@@ -19,15 +19,17 @@ import httpx
 
 API_URL = "http://127.0.0.1:8000"
 
-st.markdown("# Aira's Restaurant Finder")
+st.markdown("# Restaurant Finder")
 
-# A form groups the input + button so the page only reacts on submit, not on every keystroke.
+# A form groups the input + button so the page only reacts on submit,
+# not on every keystroke.
 with st.form("restaurant_form"):
     prompt = st.text_input(
         "Describe what you're looking for",
         placeholder="A cheap vegan place near Södermalm, Stockholm",
     )
     submitted = st.form_submit_button("Find a restaurant")
+
 if submitted and prompt:
     # Calls POST /restaurant; .json() turns the API's JSON reply into a dict.
     response = httpx.post(f"{API_URL}/restaurant", json={"prompt": prompt}).json()

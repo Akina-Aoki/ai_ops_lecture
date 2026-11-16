@@ -18,15 +18,16 @@ from db_utils import query_duckdb
 
 # "IF NOT EXISTS" makes this safe to re-run: if the table already exists,
 # nothing happens and no data is lost.
-
 query_duckdb("""
     CREATE TABLE IF NOT EXISTS restaurants (
-    name TEXT,
-    cuisine TEXT,
-    price_level TEXT,
-    rating DOUBLE,
-    description TEXT,
-    opening_hours TEXT,
-    location TEXT
+        name TEXT,
+        cuisine TEXT,
+        price_level TEXT,
+        rating DOUBLE,
+        description TEXT,
+        opening_hours TEXT,
+        location TEXT
     );
-""")
+    """)
+
+print("restaurants table ready.")
