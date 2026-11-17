@@ -5,6 +5,8 @@ Prompt describes what comes in from the user;
 RagResponse describes what goes out as the answer.
 """
 
+import os
+
 from pydantic import BaseModel, Field
 from lancedb.embeddings import get_registry
 from lancedb.pydantic import LanceModel, Vector
@@ -14,16 +16,24 @@ from dotenv import load_dotenv
 # so the embedding model below can authenticate.
 load_dotenv()
 
-# "get_registry()" is LanceDB's list of embedding models it knows how to use.
-# .get("gemini-text") picks Google's Gemini embedding model, and .create(...)
-# actually sets it up with the specific model name "gemini-embedding-001".
-# An "embedding model" takes a piece of text and turns it into a list of
-# numbers that represents what that text *means* (not just its words).
-embedding_model = get_registry().get("gemini-text").create(name="gemini-embedding-001")
+# LanceDB's "gemini-text" function reads the key from GOOGLE_API_KEY specifically
+# (hardcoded in lancedb/embeddings/gemini_text.py), not from our own .env key name.
+# Bridge the two so .env can keep calling it Gemini_API_Key.
+if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("Gemini_API_Key"):
+    os.environ["GOOGLE_API_KEY"] = os.environ["Gemini_API_Key"]
 
 # This specific embedding model always outputs a list of exactly 3072 numbers
 # for any piece of text, no matter how long or short the text is.
 EMBEDDING_DIM = 3072
+
+# "get_registry()" is LanceDB's list of embedding models it knows how to use.
+# .get("gemini-text") picks Google's Gemini embedding model, and .create(...)
+# actually sets it up with the specific model name "gemini-embedding-001".
+# dim=EMBEDDING_DIM asks for 3072-number vectors; without it, the function
+# defaults to 768 and the Vector(EMBEDDING_DIM) field below would reject the result.
+# An "embedding model" takes a piece of text and turns it into a list of
+# numbers that represents what that text *means* (not just its words).
+embedding_model = get_registry().get("gemini-text").create(name="gemini-embedding-001", dim=EMBEDDING_DIM)
 
 
 class Article(LanceModel):
@@ -34,7 +44,7 @@ class Article(LanceModel):
     to create a real database table matching it.
     """
     doc_id: str       # unique key (the file's stem); used to delete old rows before re-adding on re-ingestion
-    file_path: str    # absolute path to the source .txt file
+    filepath: str     # absolute path to the source .txt file
     filename: str = Field(description = "the stem of the file i.e without the suffix")  # "stem" = filename without ".txt" at the end
 
     # SourceField() marks this as the field whose TEXT gets fed into the embedding model. We write text here ourselves.

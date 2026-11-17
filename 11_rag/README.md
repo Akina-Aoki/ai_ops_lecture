@@ -130,7 +130,7 @@ Add your Gemini key to the repo's `.env` (already listed in `.env.example`):
 Gemini_API_Key=YOUR_GEMINI_KEY
 ```
 
-Get a key from [Google AI Studio](https://aistudio.google.com/apikey). If authentication fails, double check the exact variable name your installed `google-generativeai` / `pydantic-ai` version looks for (commonly `GEMINI_API_KEY`) and set that one too.
+Get a key from [Google AI Studio](https://aistudio.google.com/apikey). LanceDB's embedding function actually reads `GOOGLE_API_KEY`, not `Gemini_API_Key` — [backend/data_models.py](backend/data_models.py) copies the value across automatically after `load_dotenv()`, so you only need to set `Gemini_API_Key` above.
 
 ## 7. Run it
 
@@ -147,7 +147,7 @@ uv run python pdfs_to_text.py
 ```
 
 ```bash
-uv run python -m backend.ingestion
+uv run python -m ingestion
 ```
 
 The ingestion script prints the row count and filenames after each document, and pauses 30 seconds between documents to stay under the Gemini embedding rate limit — expect it to take a couple of minutes for 4 PDFs.
@@ -170,13 +170,26 @@ Open the Streamlit page, ask something like "What is special about the Holland L
 
 | Quirk | Where | Effect |
 | --- | --- | --- |
-| `Article` defines `file_path`, but `ingestion.py` adds rows with the key `filepath` | [backend/data_models.py](backend/data_models.py), [ingestion.py](ingestion.py) | The field name and the dict key don't match; check this if ingestion raises a validation/missing-field error |
+Fixed (kept here so you know what to watch for in your own code):
+
+| Was | Fix |
+| --- | --- |
+| `Article` defined `file_path`, but `ingestion.py` added rows with the key `filepath` | Renamed the schema field to `filepath` in [backend/data_models.py](backend/data_models.py) |
+| `embedding_model` didn't pass `dim=`, so `GeminiText.ndims()` defaulted to 768 while the schema hardcoded `Vector(3072)` | `.create(name="gemini-embedding-001", dim=EMBEDDING_DIM)` in [backend/data_models.py](backend/data_models.py) |
+| LanceDB's `gemini-text` embedder reads `GOOGLE_API_KEY` specifically (hardcoded in the library), not the `Gemini_API_Key` name used in this repo's `.env` | A bridge right after `load_dotenv()` in [backend/data_models.py](backend/data_models.py) copies `Gemini_API_Key` into `GOOGLE_API_KEY` if the latter isn't already set |
+| `rag_agent`'s model string was `"google-gla:gemini-2.5-flash"`, a prefix the installed `pydantic-ai` no longer recognizes | Changed to `"google:gemini-2.5-flash"` in [backend/rag.py](backend/rag.py) |
+| `pypdf` is used but was missing from `pyproject.toml` | `uv add pypdf` (see [Setup](#setup)) |
+
+Still true:
+
+| Quirk | Where | Effect |
+| --- | --- | --- |
 | `retrieve_top_documents` asks for `k=3` results but only ever reads `results[0]` | [backend/rag.py](backend/rag.py) | The other 2 matches are fetched and thrown away; fine for 4 documents, wasteful at scale |
-| `open(..., "w")` / `open(..., "r")` have no `encoding="utf-8"` | [pdfs_to_text.py](pdfs_to_text.py), [ingestion.py](ingestion.py) | Can raise `UnicodeDecodeError`/`UnicodeEncodeError` on Windows for non-ASCII text |
+| `open(..., "w")` / `open(..., "r")` have no `encoding="utf-8"` | [pdfs_to_text.py](pdfs_to_text.py), [ingestion.py](ingestion.py) | Can raise `UnicodeDecodeError`/`UnicodeEncodeError` if you read the `.txt` files with another tool that assumes UTF-8; the scripts themselves round-trip fine since both sides use the same default encoding |
 | `time.sleep(30)` between every document in `ingest_docs_to_vector_db` | [ingestion.py](ingestion.py) | Re-ingesting many documents is slow by design (rate-limit safety), not a bug |
 | `knowledge_base/` must already exist when `backend/rag.py` is imported | [backend/rag.py](backend/rag.py) | Starting `api.py` before running `ingestion.py` once will fail to find the `articles` table |
-| `pypdf` is used but missing from `pyproject.toml` | [pdfs_to_text.py](pdfs_to_text.py) | `uv run` fails until you `uv add pypdf` (see [Setup](#setup)) |
-| No `.gitignore` entry for `knowledge_base/` or `data/*.txt` yet | — | Generated files may end up tracked by git if you `git add` broadly |
+| `setup_vector_db(..., exist_ok=True)` can reject a schema that looks identical | [ingestion.py](ingestion.py) | If `create_table` raises "Provided schema does not match existing table schema" after you change `Article`, drop the table (`lancedb.connect(path).drop_table("articles")`) and re-ingest rather than debugging the diff |
+| No `.gitignore` entry for `knowledge_base/` or `data/*.txt` yet | — | Generated files may end up tracked by git if you `git add` broadly (the repo root `.gitignore` now covers this for `11_rag/`) |
 
 ## Read more
 - [pydanticai rags](https://ai.pydantic.dev/examples/rag/)

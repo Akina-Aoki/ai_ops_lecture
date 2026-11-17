@@ -18,7 +18,7 @@ vector_db = lancedb.connect(uri=VECTOR_DATABASE_PATH)
 # Here we build the agent once, and reuse it for every question the app receives.
 
 rag_agent = Agent(
-    model = "google-gla:gemini-2.5-flash",   # which AI model answers the question
+    model = "google:gemini-3.1-flash-lite",  # which AI model answers the question
     retries = 2,                             # if the AI's reply doesn't match RagResponse's shape, try again up to 2 more times
     system_prompt = (
         # These lines are instructions given to the AI before every conversation —
