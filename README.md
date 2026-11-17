@@ -29,9 +29,9 @@ Using the following tools:
 | -------- | ------------------------------------------------------------------------------ | ------------ | ------------ |
 | 1        | llm intro, llmops intro, nvidia build, pydanticai, pydantic, structured output | 00-03, a0    | 0            |
 | 2        | pydanticai + fastapi, chatbot, tool use                                        | 04-06        | 1            |
-| 3        | logfire: traces, llm judge, lancedb vector database, rag                       |              | 2            |
-| 4        | rag, project start                                                             |              |              |
-| 5        | dockerization and azure deployment, project                                    |              |              |
+| 3        | multi-agent handoff, logfire: traces + prompt management, lancedb vector database | 07-09     | 2            |
+| 4        | rag, project start                                                             | 11           |              |
+| 5        | dockerization and azure deployment, project                                    | 12           |              |
 | 6        | github actions and CI/CD, MCP, project                                         |              |              |
 | 7        | project                                                                        |              |              |
 
@@ -51,6 +51,13 @@ Each guide explains the **why**, how the lecture **connects to other files**, an
 | 04 Pydantic + FastAPI | [STUDY_GUIDE.md](04_pydantic_fastapi/STUDY_GUIDE.md) | written |
 | 05 Chatbot | [STUDY_GUIDE.md](05_pydanticai_fastapi_chatbot/STUDY_GUIDE.md) | written |
 | 06 Tool use | [STUDY_GUIDE.md](06_tool_use/STUDY_GUIDE.md) | written |
+| 07 Multi-agent handoff | [STUDY_GUIDE.md](07_multiagent_handoff/STUDY_GUIDE.md) | written |
+| 08 Logfire | [STUDY_GUIDE.md](08_logfire/STUDY_GUIDE.md) | written |
+| 09 LanceDB | [STUDY_GUIDE.md](09_lancedb/STUDY_GUIDE.md) | written |
+| 11 RAG | [STUDY_GUIDE.md](11_rag/STUDY_GUIDE.md) | written |
+| 12 Dockerize RAG | [STUDY_GUIDE.md](12_dockerize_rag/STUDY_GUIDE.md) | written |
+
+> There's no `10_...` folder in this repo yet — numbering picks back up at 11.
 
 ## The thread through the whole course
 
@@ -68,5 +75,10 @@ Provider → Model → Agent → agent.run(...)  →  result.output
 | 04 | FastAPI endpoint and DuckDB around it |
 | 05 | Streamlit page → FastAPI → Agent, with chat history |
 | 06 | Tools the model can call, `deps` |
+| 07 | A second kind of tool: `ask_study_agent`/`ask_career_agent` call *other agents*, not just functions — the coach combines their answers |
+| 08 | `logfire.instrument_pydantic_ai()` wraps the whole line with tracing; prompts move out of the code into Logfire (`get_prompt()`) |
+| 09 | No `agent.run()` yet — this lecture builds the vector-search building block (LanceDB, embeddings) that lecture 11 plugs into an agent |
+| 11 | A `retrieve_top_documents` tool backed by LanceDB, plus `output_type=RagResponse` — the agent looks something up before it answers |
+| 12 | Same line, unchanged — now running inside two Docker containers instead of two local processes |
 
 
