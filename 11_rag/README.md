@@ -4,9 +4,11 @@
 
 Until now the agents answered only from what the model learned in training. **RAG** fixes that: we build a small knowledge base (Wikipedia articles about dwarf rabbit breeds, as PDFs), turn each article into a vector with **LanceDB** (lecture 09), and let an agent **retrieve** the closest article before it answers. The whole thing is wrapped in a real client/server app: a **FastAPI** backend serves the agent over HTTP, and a **Streamlit** frontend is the page the user actually sees.
 
+![Lecture 11 architecture: a one-time setup pipeline (PDF to text to LanceDB with Gemini embeddings), then a FastAPI backend running the rag agent and a Streamlit frontend, running as two terminals on your own machine](architecture_11.png)
+
 ## The pipeline
 
-There is no architecture picture for this lecture yet, so here is the same idea as a text diagram. Steps 1-3 happen **once** (or whenever the PDFs change); steps 4-6 happen **on every question**.
+Steps 1-3 happen **once** (or whenever the PDFs change); steps 4-6 happen **on every question**.
 
 ```
 Setup (run once)

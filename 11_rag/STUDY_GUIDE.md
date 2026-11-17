@@ -37,6 +37,8 @@ Lecture 09 taught you how to store text as vectors in LanceDB and search them. L
 
 ## 2. The pictures to understand
 
+![architecture](architecture_11.png)
+
 ### Picture A: how the files connect (the whole pipeline)
 
 ```
