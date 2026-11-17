@@ -1,0 +1,25 @@
+services:
+  backend:
+    container_name: backend          # the name this container is known by
+    build:
+      context: .                     # build using this whole project folder
+      dockerfile: dockerfiles/backend.dockerfile
+    ports:
+      - "8000:8000"                  # let your own computer reach the container's port 8000
+    env_file:
+      - .env                         # pass in secret values (like API keys) from this file
+    image: backend:v1
+
+  frontend:
+    container_name: frontend
+    build:
+      context: .
+      dockerfile: dockerfiles/frontend.dockerfile
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend                      # don't start the frontend until the backend is running
+    environment:
+      - API_URL=http://backend:8000  # "backend" here is just the container_name above —
+                                      # Docker lets containers find each other by that name
+    image: frontend:v1

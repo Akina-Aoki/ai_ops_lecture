@@ -168,8 +168,6 @@ Open the Streamlit page, ask something like "What is special about the Holland L
 
 ## 8. Known quirks
 
-| Quirk | Where | Effect |
-| --- | --- | --- |
 Fixed (kept here so you know what to watch for in your own code):
 
 | Was | Fix |
@@ -177,8 +175,31 @@ Fixed (kept here so you know what to watch for in your own code):
 | `Article` defined `file_path`, but `ingestion.py` added rows with the key `filepath` | Renamed the schema field to `filepath` in [backend/data_models.py](backend/data_models.py) |
 | `embedding_model` didn't pass `dim=`, so `GeminiText.ndims()` defaulted to 768 while the schema hardcoded `Vector(3072)` | `.create(name="gemini-embedding-001", dim=EMBEDDING_DIM)` in [backend/data_models.py](backend/data_models.py) |
 | LanceDB's `gemini-text` embedder reads `GOOGLE_API_KEY` specifically (hardcoded in the library), not the `Gemini_API_Key` name used in this repo's `.env` | A bridge right after `load_dotenv()` in [backend/data_models.py](backend/data_models.py) copies `Gemini_API_Key` into `GOOGLE_API_KEY` if the latter isn't already set |
-| `rag_agent`'s model string was `"google-gla:gemini-2.5-flash"`, a prefix the installed `pydantic-ai` no longer recognizes | Changed to `"google:gemini-2.5-flash"` in [backend/rag.py](backend/rag.py) |
+| `rag_agent`'s model string was `"google-gla:gemini-2.5-flash"`, a prefix the installed `pydantic-ai` no longer recognizes | Changed to `"google:..."` in [backend/rag.py](backend/rag.py) |
+| `gemini-2.5-flash` itself returned 404 ("no longer available to new users"); the suggested replacement `gemini-3.8-flash` returned 503 ("high demand") | Settled on `"google:gemini-3.1-flash-lite"`, which responded reliably when tested. **This will likely need to change again** — Google retires and renames Gemini models faster than this README does. If you hit a 404 or 503, run the snippet below to find a model that currently works for your key, and update the `model=` line in [backend/rag.py](backend/rag.py) |
 | `pypdf` is used but was missing from `pyproject.toml` | `uv add pypdf` (see [Setup](#setup)) |
+
+If `rag_agent.run(...)` fails with `ModelNotFoundError` (404) or `ModelUnavailableError` (503), find a model your key can currently reach:
+
+```bash
+uv run python -c "
+import backend.data_models
+from google import genai
+for m in genai.Client().models.list():
+    print(m.name)
+"
+```
+
+Then try a candidate directly before editing `backend/rag.py`:
+
+```bash
+uv run python -c "
+import backend.data_models, asyncio
+from pydantic_ai import Agent
+agent = Agent(model='google:MODEL_NAME_HERE', output_type=str)
+print(asyncio.run(agent.run('Say OK')).output)
+"
+```
 
 Still true:
 
