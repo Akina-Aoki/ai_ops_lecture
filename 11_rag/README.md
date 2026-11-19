@@ -1,6 +1,7 @@
 # Lecture 11: Retrieval-Augmented Generation (RAG) with PydanticAI, LanceDB, FastAPI and Streamlit
 
 - [Lecture Video](https://youtu.be/KdeoPglfpb8)
+- [RAG LECTURE REPOSITORY](https://github.com/Akina-Aoki/RAGBIT_AIRA)
 
 Until now the agents answered only from what the model learned in training. **RAG** fixes that: we build a small knowledge base (Wikipedia articles about dwarf rabbit breeds, as PDFs), turn each article into a vector with **LanceDB** (lecture 09), and let an agent **retrieve** the closest article before it answers. The whole thing is wrapped in a real client/server app: a **FastAPI** backend serves the agent over HTTP, and a **Streamlit** frontend is the page the user actually sees.
 
